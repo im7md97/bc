@@ -23,6 +23,7 @@ export const translations = {
     roleAgent: "الوكيل",
     roleAdmin: "المدير العام",
     roleManager: "مدير المشروع",
+    roleWfm: "قوة عاملة",
 
     // Status
     statusPending: "بانتظار المشرف",
@@ -279,6 +280,16 @@ export const translations = {
     scheduleCreated: "تم إنشاء الجدول بنجاح",
     scheduleUpdated: "تم تحديث الجدول بنجاح",
     scheduleDeleted: "تم حذف الجدول",
+
+    // Breaks (WFM)
+    breaksTitle: "البركيات",
+    breaksSubtitle: "إدارة استراحات الوكلاء لكل أسبوع.",
+    breaksEditTitle: "تعديل بركيات",
+    breaksAgent: "الوكيل",
+    breaksDay: "اليوم",
+    breaksTime: "وقت الاستراحة",
+    breaksNoBreak: "لا استراحة",
+    breaksOverview: "نظرة عامة على البركيات",
   },
 
   en: {
@@ -303,6 +314,7 @@ export const translations = {
     roleAgent: "Agent",
     roleAdmin: "Admin",
     roleManager: "Project Manager",
+    roleWfm: "Workforce Management",
 
     // Status
     statusPending: "Pending Supervisor",
@@ -559,6 +571,16 @@ export const translations = {
     scheduleCreated: "Schedule created successfully",
     scheduleUpdated: "Schedule updated successfully",
     scheduleDeleted: "Schedule deleted",
+
+    // Breaks (WFM)
+    breaksTitle: "Breaks",
+    breaksSubtitle: "Manage agent breaks for each week.",
+    breaksEditTitle: "Edit Breaks",
+    breaksAgent: "Agent",
+    breaksDay: "Day",
+    breaksTime: "Break Time",
+    breaksNoBreak: "No break",
+    breaksOverview: "Breaks Overview",
   },
 } as const;
 

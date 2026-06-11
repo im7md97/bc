@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   useProjects, useCreateProject, useUpdateProject, useDeleteProject, type Project,
-} from "@/hooks/use-projects";
+} from "@/hooks/use-wfm";
 import { FolderOpen, Plus, Trash2, Edit2, AlertCircle, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { ar, enUS } from "date-fns/locale";

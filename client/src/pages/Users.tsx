@@ -44,6 +44,7 @@ export default function UsersPage() {
     { value: "agent", label: t("roleAgent"), color: "bg-green-500/10 text-green-700 border-green-300" },
     { value: "manager", label: t("roleManager"), color: "bg-orange-500/10 text-orange-700 border-orange-300" },
     { value: "admin", label: t("roleAdmin"), color: "bg-red-500/10 text-red-700 border-red-300" },
+    { value: "wfm", label: t("roleWfm"), color: "bg-cyan-500/10 text-cyan-700 border-cyan-300" },
   ];
 
   const roleInfo = (role: string) =>

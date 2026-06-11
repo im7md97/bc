@@ -24,6 +24,7 @@ export function Navbar() {
     agent: t("roleAgent"),
     admin: t("roleAdmin"),
     manager: t("roleManager"),
+    wfm: t("roleWfm"),
   };
 
   const roleBadgeColor: Record<string, string> = {
@@ -32,6 +33,7 @@ export function Navbar() {
     agent: "bg-green-500/10 text-green-700",
     admin: "bg-red-500/10 text-red-700",
     manager: "bg-orange-500/10 text-orange-700",
+    wfm: "bg-cyan-500/10 text-cyan-700",
   };
 
   const handleLogout = async () => {
@@ -43,6 +45,7 @@ export function Navbar() {
   const isAdmin = role === "admin";
   const isManager = role === "manager";
   const isAdminOrManager = isAdmin || isManager;
+  const isWfm = role === "wfm";
   const isSupervisor = role === "supervisor";
   const isAgent = role === "agent";
   const isQuality = role === "quality";
@@ -94,8 +97,8 @@ export function Navbar() {
           {!isAdminOrManager && navLink("/", <LayoutDashboard className="w-4 h-4" />, t("navDashboard"), "link-dashboard")}
           {isAdminOrManager && navLink("/", <LayoutDashboard className="w-4 h-4" />, t("navDashboard"), "link-dashboard")}
 
-          {/* Schedule — agent, supervisor, admin, manager */}
-          {(isAgent || isSupervisor || isAdminOrManager) && navLink(
+          {/* Schedule — agent, supervisor, admin, manager, wfm */}
+          {(isAgent || isSupervisor || isAdminOrManager || isWfm) && navLink(
             "/schedule",
             <Calendar className="w-4 h-4" />,
             t("navSchedule"),
