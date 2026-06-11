@@ -30,6 +30,9 @@ const audioUpload = multer({
   limits: { fileSize: 50 * 1024 * 1024 },
 });
 
+const ADMIN_ROLES = ["admin", "manager"];
+const VALID_ROLES = ["quality", "supervisor", "agent", "admin", "manager"];
+
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
 
   setupAuth(app);
@@ -37,14 +40,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   const express = (await import("express")).default;
   app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
-  // ── Audio upload (quality only) ──────────────────────────────────────────
-  app.post("/api/upload/audio", requireRole(["quality", "admin"]), audioUpload.single("audio"), (req, res) => {
+  // ── Audio upload ─────────────────────────────────────────────────────────────
+  app.post("/api/upload/audio", requireRole(["quality", "admin", "manager"]), audioUpload.single("audio"), (req, res) => {
     if (!req.file) return res.status(400).json({ message: "لم يتم رفع أي ملف" });
     const url = `/uploads/audio/${req.file.filename}`;
     res.json({ url });
   });
 
-  // ── Auth ──────────────────────────────────────────────────────────────────
+  // ── Auth ─────────────────────────────────────────────────────────────────────
   app.post("/api/auth/login", (req, res, next) => {
     passport.authenticate("local", (err: any, user: any, info: any) => {
       if (err) return next(err);
@@ -69,9 +72,38 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json({ id: user.id, username: user.username, email: user.email, role: user.role });
   });
 
-  // ── Entries ────────────────────────────────────────────────────────────────
+  // ── Stats (role-based) ────────────────────────────────────────────────────────
+  app.get("/api/stats", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const allEntries = await storage.getEntriesByRole(user.role, user.id);
+      const allUsers = ADMIN_ROLES.includes(user.role) ? await storage.getSystemUsers() : [];
+      const allProjects = ADMIN_ROLES.includes(user.role) ? await storage.getProjects() : [];
 
-  // GET /api/entries — role-based filtering
+      const count = (arr: any[], field: string, val: string) =>
+        arr.filter((e: any) => e[field] === val).length;
+
+      res.json({
+        totalEntries: allEntries.length,
+        approved: count(allEntries, "status", "approved"),
+        rejected: count(allEntries, "status", "rejected"),
+        pending: count(allEntries, "status", "pending_supervisor"),
+        internalPass: count(allEntries, "qualityInternal", "Pass"),
+        internalFail: count(allEntries, "qualityInternal", "Fail"),
+        externalPass: count(allEntries, "qualityExternal", "Pass"),
+        externalFail: count(allEntries, "qualityExternal", "Fail"),
+        csatPass: count(allEntries, "customerSatisfaction", "Pass"),
+        csatFail: count(allEntries, "customerSatisfaction", "Fail"),
+        totalUsers: allUsers.length,
+        totalProjects: allProjects.length,
+      });
+    } catch {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // ── Entries ───────────────────────────────────────────────────────────────────
+
   app.get(api.entries.list.path, requireAuth, async (req, res) => {
     try {
       const user = req.user as any;
@@ -94,7 +126,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // POST /api/entries — quality only, attaches createdByUserId
   app.post(api.entries.create.path, requireRole(["quality"]), async (req, res) => {
     try {
       const user = req.user as any;
@@ -111,7 +142,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  app.put(api.entries.update.path, requireRole(["quality", "admin"]), async (req, res) => {
+  app.put(api.entries.update.path, requireRole(["quality", "admin", "manager"]), async (req, res) => {
     try {
       const id = Number(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
@@ -124,7 +155,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // PATCH /api/entries/:id/resubmit — quality re-sends rejected entry with a note
   app.patch("/api/entries/:id/resubmit", requireRole(["quality"]), async (req, res) => {
     try {
       const id = Number(req.params.id);
@@ -145,7 +175,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // PATCH /api/entries/:id/review — supervisor approves or rejects
   app.patch("/api/entries/:id/review", requireRole(["supervisor"]), async (req, res) => {
     try {
       const id = Number(req.params.id);
@@ -166,7 +195,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  app.delete(api.entries.delete.path, requireRole(["quality", "admin"]), async (req, res) => {
+  app.delete(api.entries.delete.path, requireRole(["quality", "admin", "manager"]), async (req, res) => {
     try {
       const id = Number(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
@@ -178,13 +207,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // ── System Users (admin only) ─────────────────────────────────────────────
-  app.get(api.users.list.path, requireRole(["admin"]), async (req, res) => {
+  // ── System Users (admin + manager) ────────────────────────────────────────────
+  app.get(api.users.list.path, requireRole([...ADMIN_ROLES]), async (req, res) => {
     try { res.json(await storage.getSystemUsers()); }
     catch { res.status(500).json({ message: "Internal server error" }); }
   });
 
-  app.post(api.users.create.path, requireRole(["admin"]), async (req, res) => {
+  app.post(api.users.create.path, requireRole([...ADMIN_ROLES]), async (req, res) => {
     try {
       const { password, ...rest } = req.body;
       if (!password || password.length < 6) {
@@ -200,14 +229,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // PATCH /api/users/:id/role — admin changes user role
-  app.patch("/api/users/:id/role", requireRole(["admin"]), async (req, res) => {
+  app.patch("/api/users/:id/role", requireRole([...ADMIN_ROLES]), async (req, res) => {
     try {
       const id = Number(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
       const { role } = req.body;
-      const validRoles = ["quality", "supervisor", "agent", "admin"];
-      if (!validRoles.includes(role)) {
+      if (!VALID_ROLES.includes(role)) {
         return res.status(400).json({ message: "دور غير صالح" });
       }
       await storage.updateSystemUserRole(id, role);
@@ -217,7 +244,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  app.patch("/api/users/:id/password", requireRole(["admin"]), async (req, res) => {
+  app.patch("/api/users/:id/password", requireRole([...ADMIN_ROLES]), async (req, res) => {
     try {
       const id = Number(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
@@ -232,11 +259,136 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  app.delete(api.users.delete.path, requireRole(["admin"]), async (req, res) => {
+  app.delete(api.users.delete.path, requireRole([...ADMIN_ROLES]), async (req, res) => {
     try {
       const id = Number(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
       await storage.deleteSystemUser(id);
+      res.status(204).end();
+    } catch {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // ── Projects ──────────────────────────────────────────────────────────────────
+  app.get("/api/projects", requireRole([...ADMIN_ROLES, "supervisor"]), async (req, res) => {
+    try { res.json(await storage.getProjects()); }
+    catch { res.status(500).json({ message: "Internal server error" }); }
+  });
+
+  app.post("/api/projects", requireRole([...ADMIN_ROLES]), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { name, description, status } = req.body;
+      if (!name?.trim()) return res.status(400).json({ message: "اسم المشروع مطلوب" });
+      const project = await storage.createProject({
+        name: name.trim(),
+        description: description?.trim() || "",
+        status: status || "active",
+        createdByUserId: user.id,
+      });
+      res.status(201).json(project);
+    } catch {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/projects/:id", requireRole([...ADMIN_ROLES]), async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+      const { name, description, status } = req.body;
+      if (!name?.trim()) return res.status(400).json({ message: "اسم المشروع مطلوب" });
+      if (!await storage.getProject(id)) return res.status(404).json({ message: "Project not found" });
+      const updated = await storage.updateProject(id, {
+        name: name.trim(),
+        description: description?.trim() || "",
+        status: status || "active",
+      });
+      res.json(updated);
+    } catch {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/projects/:id", requireRole([...ADMIN_ROLES]), async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+      if (!await storage.getProject(id)) return res.status(404).json({ message: "Project not found" });
+      await storage.deleteProject(id);
+      res.status(204).end();
+    } catch {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // ── Schedules (WFM) ───────────────────────────────────────────────────────────
+  app.get("/api/schedules", requireRole([...ADMIN_ROLES, "supervisor", "agent"]), async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (user.role === "agent") {
+        const agentSchedules = await storage.getSchedulesByAgent(user.id);
+        return res.json(agentSchedules);
+      }
+      res.json(await storage.getSchedules());
+    } catch {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/schedules/agent/:agentId", requireRole([...ADMIN_ROLES, "supervisor"]), async (req, res) => {
+    try {
+      const agentId = Number(req.params.agentId);
+      if (isNaN(agentId)) return res.status(400).json({ message: "Invalid agent ID" });
+      res.json(await storage.getSchedulesByAgent(agentId));
+    } catch {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/schedules", requireRole([...ADMIN_ROLES, "supervisor"]), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { agentId, weekStart, shiftsJson } = req.body;
+      if (!agentId || !weekStart) return res.status(400).json({ message: "agentId و weekStart مطلوبان" });
+      // Check if schedule exists for this agent + week, update if so
+      const existing = await storage.getScheduleByAgentAndWeek(Number(agentId), weekStart);
+      if (existing) {
+        const updated = await storage.updateSchedule(existing.id, { shiftsJson: JSON.stringify(shiftsJson) });
+        return res.json(updated);
+      }
+      const created = await storage.createSchedule({
+        agentId: Number(agentId),
+        weekStart,
+        shiftsJson: typeof shiftsJson === "string" ? shiftsJson : JSON.stringify(shiftsJson),
+        createdByUserId: user.id,
+      });
+      res.status(201).json(created);
+    } catch {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/schedules/:id", requireRole([...ADMIN_ROLES, "supervisor"]), async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+      const { shiftsJson } = req.body;
+      const updated = await storage.updateSchedule(id, {
+        shiftsJson: typeof shiftsJson === "string" ? shiftsJson : JSON.stringify(shiftsJson),
+      });
+      res.json(updated);
+    } catch {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/schedules/:id", requireRole([...ADMIN_ROLES, "supervisor"]), async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+      await storage.deleteSchedule(id);
       res.status(204).end();
     } catch {
       res.status(500).json({ message: "Internal server error" });

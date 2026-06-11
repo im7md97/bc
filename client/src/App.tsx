@@ -9,6 +9,8 @@ import NotFound from "@/pages/not-found";
 import Dashboard from "./pages/Dashboard";
 import CreateEntry from "./pages/CreateEntry";
 import UsersPage from "./pages/Users";
+import ProjectsPage from "./pages/Projects";
+import SchedulePage from "./pages/Schedule";
 import LoginPage from "./pages/Login";
 import { useAuth } from "@/hooks/use-auth";
 import { LanguageProvider } from "@/contexts/LanguageContext";
@@ -40,6 +42,8 @@ function Router() {
       <Route path="/" component={() => <ProtectedRoute component={Dashboard} />} />
       <Route path="/create" component={() => <ProtectedRoute component={CreateEntry} />} />
       <Route path="/users" component={() => <ProtectedRoute component={UsersPage} />} />
+      <Route path="/projects" component={() => <ProtectedRoute component={ProjectsPage} />} />
+      <Route path="/schedule" component={() => <ProtectedRoute component={SchedulePage} />} />
       <Route component={NotFound} />
     </Switch>
   );

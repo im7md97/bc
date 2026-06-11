@@ -3,6 +3,7 @@ import {
   Trash2, Search, FileText, Activity, AlertCircle, Plus, Music,
   BarChart3, Users, CheckCircle2, XCircle, Clock, MessageSquare,
   ThumbsUp, ThumbsDown, Eye, ShieldCheck, SendHorizonal,
+  TrendingUp, Calendar, FolderOpen, Star,
 } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { DeleteAlertModal } from "@/components/entries/DeleteAlertModal";
@@ -12,10 +13,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
@@ -24,17 +25,18 @@ import {
 } from "@/components/ui/select";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
+  LineChart, Line,
 } from "recharts";
 import type { EntryResponse } from "@shared/routes";
 import { useLocation } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
 
-// ─── Consts ───────────────────────────────────────────────────────────────────
 const PASS_COLOR = "#22c55e";
 const FAIL_COLOR = "#ef4444";
 const NA_COLOR = "#cbd5e1";
+const PRIMARY_COLOR = "#6366f1";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 function WorkflowBadge({ status }: { status: string }) {
   const { t } = useLanguage();
   switch (status) {
@@ -83,7 +85,9 @@ function DonutChart({ title, pass, fail }: { title: string; pass: number; fail: 
           </PieChart>
         </ResponsiveContainer>
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          {passRate !== null ? <><span className="text-xl font-extrabold text-foreground">{passRate}%</span><span className="text-[10px] text-muted-foreground">Pass</span></> : <span className="text-xs text-muted-foreground">{t("dashNoData")}</span>}
+          {passRate !== null
+            ? <><span className="text-xl font-extrabold text-foreground">{passRate}%</span><span className="text-[10px] text-muted-foreground">Pass</span></>
+            : <span className="text-xs text-muted-foreground">{t("dashNoData")}</span>}
         </div>
       </div>
       <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
@@ -110,10 +114,7 @@ function AudioPlayerDialog({ url, open, onClose }: { url: string; open: boolean;
   );
 }
 
-// ─── Supervisor Review Dialog ─────────────────────────────────────────────────
-function ReviewDialog({
-  entry, open, onClose,
-}: { entry: EntryResponse | null; open: boolean; onClose: () => void }) {
+function ReviewDialog({ entry, open, onClose }: { entry: EntryResponse | null; open: boolean; onClose: () => void }) {
   const [comment, setComment] = useState("");
   const reviewMutation = useReviewEntry();
   const { t, dir } = useLanguage();
@@ -134,7 +135,6 @@ function ReviewDialog({
           </DialogTitle>
           <DialogDescription>{t("reviewRecord")}: {entry?.employeeName} — {entry?.caseNumber}</DialogDescription>
         </DialogHeader>
-
         {entry && (
           <div className="space-y-4 my-2">
             <div className="bg-secondary/20 rounded-xl p-4 space-y-2 text-sm">
@@ -145,47 +145,22 @@ function ReviewDialog({
               <div className="flex justify-between"><span className="text-muted-foreground">{t("reviewCSAT")}</span><PassFailBadge value={entry.customerSatisfaction} /></div>
               {entry.defectReason && <div className="pt-2 border-t border-border/40"><p className="text-muted-foreground text-xs mb-1">{t("reviewDefect")}</p><p className="text-foreground">{entry.defectReason}</p></div>}
             </div>
-
             {entry.qualityNote && (
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-start gap-2">
                 <MessageSquare className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-xs font-semibold text-blue-700 mb-0.5">{t("reviewQualityNote")}</p>
-                  <p className="text-sm text-blue-800">{entry.qualityNote}</p>
-                </div>
+                <div><p className="text-xs font-semibold text-blue-700 mb-0.5">{t("reviewQualityNote")}</p><p className="text-sm text-blue-800">{entry.qualityNote}</p></div>
               </div>
             )}
-
             <div className="space-y-2">
               <label className="text-sm font-semibold text-foreground">{t("reviewCommentLabel")}</label>
-              <Textarea
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder={t("reviewCommentPlaceholder")}
-                className="bg-secondary/30 border-secondary resize-none h-24"
-                data-testid="input-review-comment"
-              />
+              <Textarea value={comment} onChange={(e) => setComment(e.target.value)} placeholder={t("reviewCommentPlaceholder")} className="bg-secondary/30 border-secondary resize-none h-24" data-testid="input-review-comment" />
             </div>
-
             <div className="flex gap-3 pt-2">
-              <Button
-                onClick={() => handle("approved")}
-                disabled={reviewMutation.isPending}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold h-11"
-                data-testid="button-approve-entry"
-              >
-                <ThumbsUp className="w-4 h-4 ml-2" />
-                {t("reviewApprove")}
+              <Button onClick={() => handle("approved")} disabled={reviewMutation.isPending} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold h-11" data-testid="button-approve-entry">
+                <ThumbsUp className="w-4 h-4 ml-2" />{t("reviewApprove")}
               </Button>
-              <Button
-                onClick={() => handle("rejected")}
-                disabled={reviewMutation.isPending || !comment.trim()}
-                variant="outline"
-                className="flex-1 border-red-300 text-red-600 hover:bg-red-50 font-bold h-11"
-                data-testid="button-reject-entry"
-              >
-                <ThumbsDown className="w-4 h-4 ml-2" />
-                {t("reviewReject")}
+              <Button onClick={() => handle("rejected")} disabled={reviewMutation.isPending || !comment.trim()} variant="outline" className="flex-1 border-red-300 text-red-600 hover:bg-red-50 font-bold h-11" data-testid="button-reject-entry">
+                <ThumbsDown className="w-4 h-4 ml-2" />{t("reviewReject")}
               </Button>
             </div>
           </div>
@@ -195,10 +170,7 @@ function ReviewDialog({
   );
 }
 
-// ─── Quality Resubmit Dialog ──────────────────────────────────────────────────
-function ResubmitDialog({
-  entry, open, onClose,
-}: { entry: EntryResponse | null; open: boolean; onClose: () => void }) {
+function ResubmitDialog({ entry, open, onClose }: { entry: EntryResponse | null; open: boolean; onClose: () => void }) {
   const [note, setNote] = useState("");
   const resubmitMutation = useResubmitEntry();
   const { t, dir } = useLanguage();
@@ -219,46 +191,24 @@ function ResubmitDialog({
           </DialogTitle>
           <DialogDescription>{t("reviewRecord")}: {entry?.employeeName} — {entry?.caseNumber}</DialogDescription>
         </DialogHeader>
-
         {entry && (
           <div className="space-y-4 my-2">
             {entry.supervisorComment && (
               <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2">
                 <MessageSquare className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-xs font-semibold text-red-700 mb-0.5">{t("resubmitSupervisorComment")}</p>
-                  <p className="text-sm text-red-800">{entry.supervisorComment}</p>
-                </div>
+                <div><p className="text-xs font-semibold text-red-700 mb-0.5">{t("resubmitSupervisorComment")}</p><p className="text-sm text-red-800">{entry.supervisorComment}</p></div>
               </div>
             )}
-
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-foreground">
-                {t("resubmitNoteLabel")} <span className="text-red-500">*</span>
-              </label>
-              <Textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder={t("resubmitNotePlaceholder")}
-                className="bg-secondary/30 border-secondary resize-none h-28"
-                data-testid="input-resubmit-note"
-              />
+              <label className="text-sm font-semibold text-foreground">{t("resubmitNoteLabel")} <span className="text-red-500">*</span></label>
+              <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("resubmitNotePlaceholder")} className="bg-secondary/30 border-secondary resize-none h-28" data-testid="input-resubmit-note" />
               <p className="text-xs text-muted-foreground">{t("resubmitNoteHint")}</p>
             </div>
-
             <div className="flex gap-3 pt-2">
-              <Button
-                onClick={handle}
-                disabled={resubmitMutation.isPending || !note.trim()}
-                className="flex-1 bg-primary text-white font-bold h-11"
-                data-testid="button-resubmit-entry"
-              >
-                <SendHorizonal className="w-4 h-4 ml-2" />
-                {t("resubmitButton")}
+              <Button onClick={handle} disabled={resubmitMutation.isPending || !note.trim()} className="flex-1 bg-primary text-white font-bold h-11" data-testid="button-resubmit-entry">
+                <SendHorizonal className="w-4 h-4 ml-2" />{t("resubmitButton")}
               </Button>
-              <Button variant="outline" onClick={() => { setNote(""); onClose(); }} className="px-6 h-11">
-                {t("cancel")}
-              </Button>
+              <Button variant="outline" onClick={() => { setNote(""); onClose(); }} className="px-6 h-11">{t("cancel")}</Button>
             </div>
           </div>
         )}
@@ -267,7 +217,159 @@ function ResubmitDialog({
   );
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
+// ─── Analytics Section ────────────────────────────────────────────────────────
+function AnalyticsSection({ entries, role, t, dir }: { entries: EntryResponse[]; role: string; t: any; dir: string }) {
+  const isAdmin = role === "admin" || role === "manager";
+  const isSupervisor = role === "supervisor";
+
+  const stats = useMemo(() => {
+    const count = (arr: EntryResponse[], field: keyof EntryResponse, val: string) =>
+      arr.filter(e => e[field] === val).length;
+    return {
+      total: entries.length,
+      internalPass: count(entries, "qualityInternal", "Pass"),
+      internalFail: count(entries, "qualityInternal", "Fail"),
+      externalPass: count(entries, "qualityExternal", "Pass"),
+      externalFail: count(entries, "qualityExternal", "Fail"),
+      csatPass: count(entries, "customerSatisfaction", "Pass"),
+      csatFail: count(entries, "customerSatisfaction", "Fail"),
+      approved: count(entries, "status", "approved"),
+      rejected: count(entries, "status", "rejected"),
+      pending: count(entries, "status", "pending_supervisor"),
+    };
+  }, [entries]);
+
+  // Bar chart: agent performance
+  const agentPerf = useMemo(() => {
+    const map: Record<string, { name: string; pass: number; fail: number; total: number }> = {};
+    entries.forEach(e => {
+      if (!e.employeeName) return;
+      if (!map[e.employeeName]) map[e.employeeName] = { name: e.employeeName, pass: 0, fail: 0, total: 0 };
+      map[e.employeeName].total++;
+      if (e.qualityInternal === "Pass") map[e.employeeName].pass++;
+      else map[e.employeeName].fail++;
+    });
+    return Object.values(map).sort((a, b) => b.total - a.total).slice(0, 8);
+  }, [entries]);
+
+  // Line chart: trend by date
+  const trendData = useMemo(() => {
+    const map: Record<string, { date: string; total: number; approved: number }> = {};
+    entries.forEach(e => {
+      const d = e.callDate?.slice(0, 7) || "unknown";
+      if (!map[d]) map[d] = { date: d, total: 0, approved: 0 };
+      map[d].total++;
+      if (e.status === "approved") map[d].approved++;
+    });
+    return Object.values(map).sort((a, b) => a.date.localeCompare(b.date)).slice(-6);
+  }, [entries]);
+
+  if (entries.length === 0) return null;
+
+  return (
+    <div className="space-y-6">
+      {/* Donut Charts Row */}
+      <div>
+        <h3 className="text-lg font-bold text-foreground mb-3 flex items-center gap-2">
+          <BarChart3 className="w-5 h-5 text-primary" />{t("dashChartsTitle")}
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <DonutChart title={t("dashComplianceTitle")} pass={stats.internalPass} fail={stats.internalFail} />
+          <DonutChart title={t("dashBusinessTitle")} pass={stats.externalPass} fail={stats.externalFail} />
+          <DonutChart title={t("dashCSATTitle")} pass={stats.csatPass} fail={stats.csatFail} />
+        </div>
+      </div>
+
+      {/* Bar Chart: Agent Performance */}
+      {(isAdmin || isSupervisor) && agentPerf.length > 0 && (
+        <div className="bg-card border border-border/60 rounded-2xl p-5 shadow-sm">
+          <h3 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-primary" />{t("dashPerformanceTitle")}
+          </h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={agentPerf} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="name" tick={{ fontSize: 11 }} tickLine={false} />
+              <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+              <Tooltip contentStyle={{ fontFamily: "inherit", borderRadius: "10px", border: "1px solid #e2e8f0" }} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Bar dataKey="pass" name="Pass" fill={PASS_COLOR} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="fail" name="Fail" fill={FAIL_COLOR} radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Line Chart: Trend */}
+      {(isAdmin || isSupervisor) && trendData.length > 1 && (
+        <div className="bg-card border border-border/60 rounded-2xl p-5 shadow-sm">
+          <h3 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
+            <Activity className="w-4 h-4 text-primary" />{t("dashTrendTitle")}
+          </h3>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={trendData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false} />
+              <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+              <Tooltip contentStyle={{ fontFamily: "inherit", borderRadius: "10px", border: "1px solid #e2e8f0" }} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Line type="monotone" dataKey="total" name="Total" stroke={PRIMARY_COLOR} strokeWidth={2} dot={{ fill: PRIMARY_COLOR, r: 4 }} />
+              <Line type="monotone" dataKey="approved" name="Approved" stroke={PASS_COLOR} strokeWidth={2} dot={{ fill: PASS_COLOR, r: 4 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Agent Personal Dashboard ─────────────────────────────────────────────────
+function AgentDashboard({ entries, user, t, dir }: { entries: EntryResponse[]; user: any; t: any; dir: string }) {
+  const myEntries = entries.filter(e => e.status === "approved");
+  const total = myEntries.length;
+  const intPass = myEntries.filter(e => e.qualityInternal === "Pass").length;
+  const extPass = myEntries.filter(e => e.qualityExternal === "Pass").length;
+  const csatPass = myEntries.filter(e => e.customerSatisfaction === "Pass").length;
+  const overallScore = total > 0 ? Math.round(((intPass + extPass + csatPass) / (total * 3)) * 100) : 0;
+
+  return (
+    <div className="space-y-4">
+      {/* Personal Score */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="bg-gradient-to-br from-primary to-blue-600 text-white rounded-2xl p-5 shadow-lg shadow-primary/25 col-span-2 sm:col-span-1">
+          <div className="flex items-center gap-2 mb-2">
+            <Star className="w-5 h-5 opacity-80" />
+            <p className="text-sm font-medium opacity-80">{t("dashMyScore")}</p>
+          </div>
+          <p className="text-4xl font-extrabold">{overallScore}%</p>
+        </div>
+        <div className="bg-card border border-border/60 rounded-2xl p-4 shadow-sm">
+          <p className="text-xs text-muted-foreground mb-1">{t("dashTotalEntries")}</p>
+          <p className="text-2xl font-extrabold">{total}</p>
+        </div>
+        <div className="bg-card border border-border/60 rounded-2xl p-4 shadow-sm">
+          <p className="text-xs text-muted-foreground mb-1">{t("dashComplianceTitle")}</p>
+          <p className="text-2xl font-extrabold text-green-600">{total > 0 ? Math.round((intPass / total) * 100) : 0}%</p>
+        </div>
+        <div className="bg-card border border-border/60 rounded-2xl p-4 shadow-sm">
+          <p className="text-xs text-muted-foreground mb-1">{t("dashCSATTitle")}</p>
+          <p className="text-2xl font-extrabold text-blue-600">{total > 0 ? Math.round((csatPass / total) * 100) : 0}%</p>
+        </div>
+      </div>
+
+      {/* Charts */}
+      {total > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <DonutChart title={t("dashComplianceTitle")} pass={intPass} fail={total - intPass} />
+          <DonutChart title={t("dashBusinessTitle")} pass={extPass} fail={total - extPass} />
+          <DonutChart title={t("dashCSATTitle")} pass={csatPass} fail={total - csatPass} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Dashboard ───────────────────────────────────────────────────────────
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const { data: user } = useAuth();
@@ -289,10 +391,11 @@ export default function Dashboard() {
   const isQuality = role === "quality";
   const isSupervisor = role === "supervisor";
   const isAgent = role === "agent";
+  const isAdminOrManager = role === "admin" || role === "manager";
 
   const employeeNames = useMemo(() => {
     if (!entries) return [];
-    return [...new Set(entries.map(e => e.employeeName).filter(Boolean))].sort();
+    return Array.from(new Set(entries.map(e => e.employeeName).filter(Boolean))).sort();
   }, [entries]);
 
   const filteredEntries = useMemo(() => {
@@ -344,8 +447,9 @@ export default function Dashboard() {
 
   const pageTitle = () => {
     if (isQuality) return t("dashEntriesTitleQuality");
-    if (isSupervisor) return t("dashSubtitleSupervisor").split(" ")[0] + " " + t("dashEntriesTitleSupervisor").split(" ")[0];
+    if (isSupervisor) return t("dashEntriesTitleSupervisor");
     if (isAgent) return t("dashEntriesTitleAgent");
+    if (isAdminOrManager) return t("dashTitle");
     return t("dashTitle");
   };
 
@@ -353,6 +457,8 @@ export default function Dashboard() {
     if (isQuality) return t("dashSubtitleQuality");
     if (isSupervisor) return t("dashSubtitleSupervisor");
     if (isAgent) return t("dashSubtitleAgent");
+    if (role === "admin") return t("dashSubtitleAdmin");
+    if (role === "manager") return t("dashSubtitleManager");
     return "";
   };
 
@@ -380,46 +486,37 @@ export default function Dashboard() {
               className="bg-gradient-to-r from-primary to-blue-600 text-white shadow-lg shadow-primary/25 rounded-xl px-6 h-12 text-base font-bold w-full sm:w-auto"
               data-testid="button-create-entry"
             >
-              <Plus className="w-5 h-5 ml-2" />
-              {t("dashAddEntry")}
+              <Plus className="w-5 h-5 ml-2" />{t("dashAddEntry")}
             </Button>
           )}
         </div>
 
-        {/* Filters */}
-        <div className="bg-card border border-border/60 rounded-2xl p-4 shadow-sm">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
-            <div className="relative">
-              <Search className={searchIcon} />
-              <Input placeholder={t("dashSearchPlaceholder")} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                className={`${searchPadding} rounded-xl bg-secondary/40 border-transparent h-10`} data-testid="input-search" />
+        {/* Agent personal dashboard */}
+        {isAgent && !isLoading && !isError && entries && (
+          <AgentDashboard entries={entries} user={user} t={t} dir={dir} />
+        )}
+
+        {/* Summary Cards for non-agent */}
+        {!isAgent && !isLoading && !isError && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-card border border-border/60 rounded-2xl p-4 flex items-center gap-3 shadow-sm">
+              <div className="bg-primary/10 p-2.5 rounded-xl"><FileText className="w-5 h-5 text-primary" /></div>
+              <div><p className="text-xs text-muted-foreground">{t("dashTotalEntries")}</p><p className="text-2xl font-extrabold">{stats.total}</p></div>
             </div>
-            <Select value={filterEmployee} onValueChange={setFilterEmployee}>
-              <SelectTrigger className="h-10 rounded-xl bg-secondary/40 border-transparent" data-testid="select-employee-filter">
-                <SelectValue placeholder={t("dashFilterEmployee")} />
-              </SelectTrigger>
-              <SelectContent dir={dir}>
-                <SelectItem value="all">{t("dashFilterEmployee")}</SelectItem>
-                {employeeNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1 font-medium">{t("dashFilterFrom")}</p>
-              <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="h-10 rounded-xl bg-secondary/40 border-transparent" />
+            <div className="bg-card border border-border/60 rounded-2xl p-4 flex items-center gap-3 shadow-sm">
+              <div className="bg-amber-500/10 p-2.5 rounded-xl"><Clock className="w-5 h-5 text-amber-600" /></div>
+              <div><p className="text-xs text-muted-foreground">{t("dashPending")}</p><p className="text-2xl font-extrabold">{stats.pending}</p></div>
             </div>
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-xs text-muted-foreground font-medium">{t("dashFilterTo")}</p>
-                {hasFilters && <button onClick={clearFilters} className="text-xs text-primary hover:underline">{t("delete")}</button>}
-              </div>
-              <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="h-10 rounded-xl bg-secondary/40 border-transparent" />
+            <div className="bg-card border border-border/60 rounded-2xl p-4 flex items-center gap-3 shadow-sm">
+              <div className="bg-green-500/10 p-2.5 rounded-xl"><CheckCircle2 className="w-5 h-5 text-green-600" /></div>
+              <div><p className="text-xs text-muted-foreground">{t("dashApproved")}</p><p className="text-2xl font-extrabold">{stats.approved}</p></div>
+            </div>
+            <div className="bg-card border border-border/60 rounded-2xl p-4 flex items-center gap-3 shadow-sm">
+              <div className="bg-red-500/10 p-2.5 rounded-xl"><XCircle className="w-5 h-5 text-red-600" /></div>
+              <div><p className="text-xs text-muted-foreground">{t("dashRejected")}</p><p className="text-2xl font-extrabold">{stats.rejected}</p></div>
             </div>
           </div>
-          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border/40">
-            <Activity className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">{filteredEntries.length} {t("dashTotalEntries")}</span>
-          </div>
-        </div>
+        )}
 
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -432,106 +529,96 @@ export default function Dashboard() {
           </div>
         ) : (
           <>
-            {/* Summary Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-card border border-border/60 rounded-2xl p-4 flex items-center gap-3 shadow-sm">
-                <div className="bg-primary/10 p-2.5 rounded-xl"><FileText className="w-5 h-5 text-primary" /></div>
-                <div><p className="text-xs text-muted-foreground">{t("dashTotalEntries")}</p><p className="text-2xl font-extrabold">{stats.total}</p></div>
-              </div>
-              {!isAgent && (
-                <div className="bg-card border border-border/60 rounded-2xl p-4 flex items-center gap-3 shadow-sm">
-                  <div className="bg-amber-500/10 p-2.5 rounded-xl"><Clock className="w-5 h-5 text-amber-600" /></div>
-                  <div><p className="text-xs text-muted-foreground">{t("dashPending")}</p><p className="text-2xl font-extrabold">{stats.pending}</p></div>
-                </div>
-              )}
-              <div className="bg-card border border-border/60 rounded-2xl p-4 flex items-center gap-3 shadow-sm">
-                <div className="bg-green-500/10 p-2.5 rounded-xl"><CheckCircle2 className="w-5 h-5 text-green-600" /></div>
-                <div><p className="text-xs text-muted-foreground">{t("dashApproved")}</p><p className="text-2xl font-extrabold">{stats.approved}</p></div>
-              </div>
-              {!isAgent && (
-                <div className="bg-card border border-border/60 rounded-2xl p-4 flex items-center gap-3 shadow-sm">
-                  <div className="bg-red-500/10 p-2.5 rounded-xl"><XCircle className="w-5 h-5 text-red-600" /></div>
-                  <div><p className="text-xs text-muted-foreground">{t("dashRejected")}</p><p className="text-2xl font-extrabold">{stats.rejected}</p></div>
-                </div>
-              )}
-            </div>
-
-            {/* Donut Charts */}
-            {(isSupervisor || isAgent) && filteredEntries.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <DonutChart title={t("dashComplianceTitle")} pass={stats.internalPass} fail={stats.internalFail} />
-                <DonutChart title={t("dashBusinessTitle")} pass={stats.externalPass} fail={stats.externalFail} />
-                <DonutChart title={t("dashCSATTitle")} pass={stats.csatPass} fail={stats.csatFail} />
-              </div>
+            {/* Analytics */}
+            {!isAgent && filteredEntries.length > 0 && (
+              <AnalyticsSection entries={filteredEntries} role={role} t={t} dir={dir} />
             )}
 
-            {/* Employee table */}
-            {(isSupervisor || isAgent) && employeeTable.length > 0 && (
+            {/* Employee Performance Table for admin/manager/supervisor */}
+            {(isAdminOrManager || isSupervisor) && employeeTable.length > 0 && (
               <div className="bg-card border border-border/60 rounded-2xl shadow-sm overflow-hidden">
-                <div className="p-5 border-b border-border/50 flex items-center gap-3">
-                  <div className="bg-primary/10 p-2 rounded-xl"><Users className="w-4 h-4 text-primary" /></div>
-                  <h3 className="font-bold text-foreground text-lg">{t("dashEmployeeTable")}</h3>
+                <div className="p-4 border-b border-border/40">
+                  <h3 className="font-bold text-foreground flex items-center gap-2">
+                    <Users className="w-4 h-4 text-primary" />{t("dashEmployeeTable")}
+                  </h3>
                 </div>
                 <div className="overflow-x-auto">
                   <Table>
-                    <TableHeader className="bg-secondary/50">
+                    <TableHeader className="bg-secondary/30">
                       <TableRow className="hover:bg-transparent">
-                        <TableHead className={`${dir === "rtl" ? "text-right" : "text-left"} font-bold text-foreground py-4`}>{t("dashEmployee")}</TableHead>
-                        <TableHead className="text-center font-bold text-foreground py-4">{t("dashTotal")}</TableHead>
-                        <TableHead className="text-center font-bold text-foreground py-4">{t("dashCompliance")}</TableHead>
-                        <TableHead className="text-center font-bold text-foreground py-4">{t("dashBusiness")}</TableHead>
-                        <TableHead className="text-center font-bold text-foreground py-4">{t("dashCSAT")}</TableHead>
+                        <TableHead className={`${dir === "rtl" ? "text-right" : "text-left"} font-bold py-3`}>{t("dashEmployee")}</TableHead>
+                        <TableHead className={`${dir === "rtl" ? "text-right" : "text-left"} font-bold py-3`}>{t("dashTotal")}</TableHead>
+                        <TableHead className={`${dir === "rtl" ? "text-right" : "text-left"} font-bold py-3 hidden sm:table-cell`}>{t("dashCompliance")}</TableHead>
+                        <TableHead className={`${dir === "rtl" ? "text-right" : "text-left"} font-bold py-3 hidden sm:table-cell`}>{t("dashBusiness")}</TableHead>
+                        <TableHead className={`${dir === "rtl" ? "text-right" : "text-left"} font-bold py-3 hidden md:table-cell`}>{t("dashCSAT")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {employeeTable.map((emp) => {
-                        const cols = [
-                          { pass: emp.intPass },
-                          { pass: emp.extPass },
-                          { pass: emp.csatPass },
-                        ];
-                        return (
-                          <TableRow key={emp.name} className="hover:bg-secondary/20">
-                            <TableCell className="py-3 font-bold">{emp.name}</TableCell>
-                            <TableCell className="py-3 text-center"><Badge variant="outline" className="bg-secondary/50 font-bold">{emp.total}</Badge></TableCell>
-                            {cols.map((col, i) => {
-                              const p = emp.total > 0 ? Math.round((col.pass / emp.total) * 100) : 0;
-                              return (
-                                <TableCell key={i} className="py-3 text-center">
-                                  <div className="flex flex-col items-center gap-1">
-                                    <span className={`font-bold text-sm ${p >= 80 ? "text-green-600" : p >= 50 ? "text-amber-600" : "text-red-600"}`}>{pct(col.pass, emp.total)}</span>
-                                    <div className="w-14 h-1.5 bg-secondary rounded-full overflow-hidden">
-                                      <div className={`h-full rounded-full ${p >= 80 ? "bg-green-500" : p >= 50 ? "bg-amber-500" : "bg-red-500"}`} style={{ width: `${p}%` }} />
-                                    </div>
-                                  </div>
-                                </TableCell>
-                              );
-                            })}
-                          </TableRow>
-                        );
-                      })}
+                      {employeeTable.map(emp => (
+                        <TableRow key={emp.name} className="hover:bg-secondary/20">
+                          <TableCell className="py-3 font-semibold">{emp.name}</TableCell>
+                          <TableCell className="py-3">{emp.total}</TableCell>
+                          <TableCell className="py-3 hidden sm:table-cell">
+                            <span className={`font-semibold ${emp.intPass / emp.total >= 0.7 ? "text-green-600" : "text-red-600"}`}>{pct(emp.intPass, emp.total)}</span>
+                          </TableCell>
+                          <TableCell className="py-3 hidden sm:table-cell">
+                            <span className={`font-semibold ${emp.extPass / emp.total >= 0.7 ? "text-green-600" : "text-red-600"}`}>{pct(emp.extPass, emp.total)}</span>
+                          </TableCell>
+                          <TableCell className="py-3 hidden md:table-cell">
+                            <span className={`font-semibold ${emp.csatPass / emp.total >= 0.7 ? "text-green-600" : "text-red-600"}`}>{pct(emp.csatPass, emp.total)}</span>
+                          </TableCell>
+                        </TableRow>
+                      ))}
                     </TableBody>
                   </Table>
                 </div>
               </div>
             )}
 
-            {/* Entries Table */}
-            <div className="bg-card rounded-2xl border border-border/60 shadow-sm overflow-hidden">
-              <div className="p-5 border-b border-border/50 flex items-center gap-3">
-                <div className="bg-primary/10 p-2 rounded-xl"><FileText className="w-4 h-4 text-primary" /></div>
-                <h3 className="font-bold text-foreground text-lg">
-                  {isSupervisor ? t("dashEntriesTitleSupervisor") : isAgent ? t("dashEntriesTitleAgent") : t("dashEntriesTitleQuality")}
-                </h3>
+            {/* Filters */}
+            <div className="bg-card border border-border/60 rounded-2xl p-4 shadow-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+                <div className="relative">
+                  <Search className={searchIcon} />
+                  <Input placeholder={t("dashSearchPlaceholder")} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                    className={`${searchPadding} rounded-xl bg-secondary/40 border-transparent h-10`} data-testid="input-search" />
+                </div>
+                <Select value={filterEmployee} onValueChange={setFilterEmployee}>
+                  <SelectTrigger className="h-10 rounded-xl bg-secondary/40 border-transparent" data-testid="select-employee-filter">
+                    <SelectValue placeholder={t("dashFilterEmployee")} />
+                  </SelectTrigger>
+                  <SelectContent dir={dir}>
+                    <SelectItem value="all">{t("dashFilterEmployee")}</SelectItem>
+                    {employeeNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1 font-medium">{t("dashFilterFrom")}</p>
+                  <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="h-10 rounded-xl bg-secondary/40 border-transparent" />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-xs text-muted-foreground font-medium">{t("dashFilterTo")}</p>
+                    {hasFilters && <button onClick={clearFilters} className="text-xs text-primary hover:underline">{t("delete")}</button>}
+                  </div>
+                  <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="h-10 rounded-xl bg-secondary/40 border-transparent" />
+                </div>
               </div>
+              <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border/40">
+                <Activity className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">{filteredEntries.length} {t("dashTotalEntries")}</span>
+              </div>
+            </div>
 
+            {/* Entries Table */}
+            <div className="bg-card border border-border/60 rounded-2xl shadow-sm overflow-hidden">
               {filteredEntries.length === 0 ? (
-                <div className="p-16 text-center flex flex-col items-center bg-secondary/10">
-                  <FileText className="w-10 h-10 text-primary/30 mb-4" />
-                  <h3 className="text-xl font-bold text-foreground">{t("dashNoEntries")}</h3>
+                <div className="p-12 text-center flex flex-col items-center">
+                  <FileText className="w-12 h-12 text-muted-foreground/40 mb-4" />
+                  <h3 className="text-lg font-semibold text-muted-foreground">{t("dashNoEntries")}</h3>
                   {isQuality && (
-                    <Button onClick={() => setLocation("/create")} variant="outline" className="mt-4 border-primary/20 text-primary rounded-xl">
-                      {t("dashAddFirst")}
+                    <Button onClick={() => setLocation("/create")} variant="outline" className="mt-4 rounded-xl border-primary/20 text-primary">
+                      <Plus className="w-4 h-4 mr-2" />{t("dashAddFirst")}
                     </Button>
                   )}
                 </div>
@@ -541,70 +628,45 @@ export default function Dashboard() {
                     <TableHeader className="bg-secondary/50">
                       <TableRow className="hover:bg-transparent">
                         <TableHead className={`${dir === "rtl" ? "text-right" : "text-left"} font-bold text-foreground py-4`}>{t("dashColEmployee")}</TableHead>
-                        <TableHead className={`${dir === "rtl" ? "text-right" : "text-left"} font-bold text-foreground py-4`}>{t("dashColCase")}</TableHead>
+                        <TableHead className={`${dir === "rtl" ? "text-right" : "text-left"} font-bold text-foreground py-4 hidden sm:table-cell`}>{t("dashColCase")}</TableHead>
                         <TableHead className={`${dir === "rtl" ? "text-right" : "text-left"} font-bold text-foreground py-4 hidden md:table-cell`}>{t("dashColDate")}</TableHead>
-                        <TableHead className="text-center font-bold text-foreground py-4 hidden lg:table-cell">{t("dashColCompliance")}</TableHead>
-                        <TableHead className="text-center font-bold text-foreground py-4 hidden lg:table-cell">{t("dashColBusiness")}</TableHead>
-                        <TableHead className="text-center font-bold text-foreground py-4 hidden lg:table-cell">{t("dashColCSAT")}</TableHead>
+                        <TableHead className={`${dir === "rtl" ? "text-right" : "text-left"} font-bold text-foreground py-4 hidden lg:table-cell`}>{t("dashColCompliance")}</TableHead>
+                        <TableHead className={`${dir === "rtl" ? "text-right" : "text-left"} font-bold text-foreground py-4 hidden lg:table-cell`}>{t("dashColBusiness")}</TableHead>
+                        <TableHead className={`${dir === "rtl" ? "text-right" : "text-left"} font-bold text-foreground py-4 hidden xl:table-cell`}>{t("dashColCSAT")}</TableHead>
                         <TableHead className={`${dir === "rtl" ? "text-right" : "text-left"} font-bold text-foreground py-4`}>{t("dashColStatus")}</TableHead>
                         <TableHead className={`${dir === "rtl" ? "text-left" : "text-right"} font-bold text-foreground py-4`}>{t("actions")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredEntries.map((entry) => (
-                        <TableRow key={entry.id} className="group hover:bg-secondary/20" data-testid={`row-entry-${entry.id}`}>
-                          <TableCell className="py-3 font-bold text-foreground">
-                            <div>
-                              {entry.employeeName}
-                              {entry.status === "rejected" && entry.supervisorComment && (
-                                <div className="mt-1 flex items-start gap-1 text-xs text-red-600 bg-red-50 rounded-lg p-2 max-w-xs">
-                                  <MessageSquare className="w-3 h-3 mt-0.5 flex-shrink-0" />
-                                  <span>{entry.supervisorComment}</span>
-                                </div>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="py-3 text-sm text-muted-foreground">{entry.caseNumber}</TableCell>
-                          <TableCell className="py-3 text-sm text-muted-foreground hidden md:table-cell whitespace-nowrap">{entry.callDate}</TableCell>
-                          <TableCell className="py-3 text-center hidden lg:table-cell"><PassFailBadge value={entry.qualityInternal} /></TableCell>
-                          <TableCell className="py-3 text-center hidden lg:table-cell"><PassFailBadge value={entry.qualityExternal} /></TableCell>
-                          <TableCell className="py-3 text-center hidden lg:table-cell"><PassFailBadge value={entry.customerSatisfaction} /></TableCell>
-                          <TableCell className="py-3"><WorkflowBadge status={entry.status} /></TableCell>
-                          <TableCell className={`py-3 ${dir === "rtl" ? "text-left" : "text-right"}`}>
+                      {filteredEntries.map(entry => (
+                        <TableRow key={entry.id} className="group hover:bg-secondary/20">
+                          <TableCell className="py-3.5 font-semibold">{entry.employeeName}</TableCell>
+                          <TableCell className="py-3.5 text-muted-foreground font-mono text-sm hidden sm:table-cell">{entry.caseNumber}</TableCell>
+                          <TableCell className="py-3.5 text-muted-foreground text-sm hidden md:table-cell">{entry.callDate}</TableCell>
+                          <TableCell className="py-3.5 hidden lg:table-cell"><PassFailBadge value={entry.qualityInternal} /></TableCell>
+                          <TableCell className="py-3.5 hidden lg:table-cell"><PassFailBadge value={entry.qualityExternal} /></TableCell>
+                          <TableCell className="py-3.5 hidden xl:table-cell"><PassFailBadge value={entry.customerSatisfaction} /></TableCell>
+                          <TableCell className="py-3.5"><WorkflowBadge status={entry.status} /></TableCell>
+                          <TableCell className={`py-3.5 ${dir === "rtl" ? "text-left" : "text-right"}`}>
                             <div className="flex justify-end gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                              {/* Supervisor: review button only on pending entries */}
-                              {isSupervisor && entry.status === "pending_supervisor" && (
-                                <Button variant="ghost" size="icon"
-                                  onClick={() => setReviewEntry(entry)}
-                                  className="h-8 w-8 text-primary hover:bg-primary/10 bg-primary/5 sm:bg-transparent"
-                                  title={t("reviewTitle")} data-testid={`button-review-entry-${entry.id}`}>
-                                  <Eye className="w-4 h-4" />
-                                </Button>
-                              )}
-                              {/* Audio */}
                               {entry.audioUrl && (
-                                <Button variant="ghost" size="icon" onClick={() => setAudioEntry(entry)}
-                                  className="h-8 w-8 text-primary hover:bg-primary/10 bg-primary/5 sm:bg-transparent"
-                                  title={t("audioTitle")} data-testid={`button-play-audio-${entry.id}`}>
-                                  <Music className="w-4 h-4" />
+                                <Button variant="ghost" size="icon" onClick={() => setAudioEntry(entry)} className="h-8 w-8 text-primary hover:bg-primary/10 bg-primary/5 sm:bg-transparent">
+                                  <Music className="w-3.5 h-3.5" />
                                 </Button>
                               )}
-                              {/* Resubmit — quality only on rejected entries */}
+                              {isSupervisor && entry.status === "pending_supervisor" && (
+                                <Button variant="ghost" size="icon" onClick={() => setReviewEntry(entry)} className="h-8 w-8 text-purple-600 hover:bg-purple-50 bg-purple-50/50 sm:bg-transparent" data-testid={`button-review-${entry.id}`}>
+                                  <Eye className="w-3.5 h-3.5" />
+                                </Button>
+                              )}
                               {isQuality && entry.status === "rejected" && (
-                                <Button variant="ghost" size="icon"
-                                  onClick={() => setResubmitEntry(entry)}
-                                  className="h-8 w-8 text-blue-600 hover:bg-blue-50 bg-blue-50/50 sm:bg-transparent"
-                                  title={t("resubmitTitle")} data-testid={`button-resubmit-entry-${entry.id}`}>
-                                  <SendHorizonal className="w-4 h-4" />
+                                <Button variant="ghost" size="icon" onClick={() => setResubmitEntry(entry)} className="h-8 w-8 text-blue-600 hover:bg-blue-50 bg-blue-50/50 sm:bg-transparent" data-testid={`button-resubmit-${entry.id}`}>
+                                  <SendHorizonal className="w-3.5 h-3.5" />
                                 </Button>
                               )}
-                              {/* Delete — quality only */}
-                              {isQuality && (
-                                <Button variant="ghost" size="icon"
-                                  onClick={() => { setSelectedEntry(entry); setIsDeleteOpen(true); }}
-                                  className="h-8 w-8 text-red-600 hover:bg-red-50 bg-red-50/50 sm:bg-transparent"
-                                  title={t("delete")} data-testid={`button-delete-entry-${entry.id}`}>
-                                  <Trash2 className="w-4 h-4" />
+                              {(isQuality || isAdminOrManager) && (
+                                <Button variant="ghost" size="icon" onClick={() => { setSelectedEntry(entry); setIsDeleteOpen(true); }} className="h-8 w-8 text-red-600 hover:bg-red-50 bg-red-50/50 sm:bg-transparent" data-testid={`button-delete-${entry.id}`}>
+                                  <Trash2 className="w-3.5 h-3.5" />
                                 </Button>
                               )}
                             </div>
@@ -620,14 +682,15 @@ export default function Dashboard() {
         )}
       </main>
 
-      <DeleteAlertModal isOpen={isDeleteOpen} onClose={() => setIsDeleteOpen(false)} entryId={selectedEntry?.id || null} />
-
-      {audioEntry?.audioUrl && (
-        <AudioPlayerDialog url={audioEntry.audioUrl} open={!!audioEntry} onClose={() => setAudioEntry(null)} />
+      <DeleteAlertModal
+        isOpen={isDeleteOpen}
+        onClose={() => { setIsDeleteOpen(false); setSelectedEntry(null); }}
+        entryId={selectedEntry?.id ?? null}
+      />
+      {audioEntry && (
+        <AudioPlayerDialog url={audioEntry.audioUrl!} open={!!audioEntry} onClose={() => setAudioEntry(null)} />
       )}
-
       <ReviewDialog entry={reviewEntry} open={!!reviewEntry} onClose={() => setReviewEntry(null)} />
-
       <ResubmitDialog entry={resubmitEntry} open={!!resubmitEntry} onClose={() => setResubmitEntry(null)} />
     </div>
   );

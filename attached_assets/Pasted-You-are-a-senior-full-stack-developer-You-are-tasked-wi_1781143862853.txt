@@ -1,0 +1,121 @@
+You are a senior full-stack developer. You are tasked with updating an existing production-ready web application.
+
+IMPORTANT RULES:
+- Do NOT break existing functionality.
+- Do NOT delete unrelated files or features.
+- Keep the system stable and production-safe.
+- Write clean, scalable, and maintainable code.
+- Follow best practices for security, performance, and architecture.
+- Ensure full responsive design across all devices.
+- Maintain role-based access control (RBAC) strictly.
+- Ensure no console errors or build failures.
+
+--------------------------------------------
+PROJECT REQUIREMENTS / CHANGES
+--------------------------------------------
+
+1. ROLES SYSTEM (RBAC)
+Implement and refine a role-based access control system with the following roles:
+- Admin
+- Manager
+- Supervisor
+- Agent
+
+Each role must have clearly separated permissions and UI visibility rules.
+
+--------------------------------------------
+
+2. ADMIN / MANAGER CAPABILITIES
+Admins and Managers must be able to:
+- Add, edit, and delete projects
+- Manage users (create, update, delete users)
+- Assign and modify user roles and permissions
+- Change user passwords
+- Fully manage system accounts and user data
+
+--------------------------------------------
+
+3. WORKFORCE MANAGEMENT (WFM) SYSTEM
+Implement a Workforce Management module that includes:
+- Weekly agent schedule creation and editing
+- Shift management
+- Break scheduling system (assign and modify breaks)
+- View schedules per agent
+- Ensure schedules are dynamic and easily editable
+
+--------------------------------------------
+
+4. PROJECT MANAGER DASHBOARD
+Project Managers should be able to:
+- View all project statistics
+- View assigned agents
+- View supervisors under their project
+- Monitor overall project performance and analytics
+
+--------------------------------------------
+
+5. SUPERVISOR DASHBOARD
+Supervisors should be able to:
+- View schedules of agents under their supervision
+- Monitor attendance and check-in status
+- Track performance of their assigned team
+- Only access data related to their assigned team
+
+--------------------------------------------
+
+6. AGENT INTERFACE
+Agents should have access to:
+- Weekly personal schedule
+- Break times
+- Quality score / performance rating
+- Personal statistics dashboard
+
+--------------------------------------------
+
+7. FRONTEND IMPROVEMENTS
+- Improve overall UI/UX design
+- Ensure modern and clean interface
+- Fully responsive layout (mobile, tablet, desktop)
+- Optimize usability and navigation
+
+--------------------------------------------
+
+8. HEADER (ROLE-BASED DYNAMIC UI)
+Modify the header to be dynamic based on user role:
+
+Agent:
+- Quality score
+- Statistics
+- Weekly schedule
+
+Supervisor / Manager / Admin:
+- Role-specific navigation and analytics access
+- Additional admin controls depending on permissions
+
+--------------------------------------------
+
+9. DASHBOARD (HERO / BODY SECTION)
+- Add analytics dashboard in the main page
+- Display data using charts (bar charts, pie charts, line graphs)
+- All analytics must be role-based (each role sees only relevant data)
+- Use modern visualization components for better UX
+
+--------------------------------------------
+
+ADDITIONAL IMPROVEMENTS (RECOMMENDED)
+- Add notifications system for important updates
+- Add audit logs for tracking user actions
+- Improve API security (authentication + authorization)
+- Optimize performance and reduce unnecessary API calls
+- Add loading states and empty states in UI
+- Optionally support dark mode
+- Ensure modular and scalable code architecture
+
+--------------------------------------------
+
+FINAL REQUIREMENTS:
+- No breaking changes
+- No removal of existing core features
+- Ensure system stability
+- Maintain clean architecture
+- Ensure all features respect role-based permissions

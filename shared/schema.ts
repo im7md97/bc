@@ -1,9 +1,9 @@
-import { pgTable, text, serial, timestamp, varchar, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, varchar, integer, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Roles: quality | supervisor | agent | admin
-// Workflow: quality creates → pending_supervisor → supervisor approves (approved) or rejects (rejected) → agent sees approved
+// Roles: quality | supervisor | agent | admin | manager
+// Workflow: quality creates → pending_supervisor → supervisor approves/rejects → agent sees approved
 
 export const entries = pgTable("entries", {
   id: serial("id").primaryKey(),
@@ -54,3 +54,50 @@ export type InsertSystemUser = z.infer<typeof insertSystemUserSchema>;
 export type CreateSystemUserRequest = InsertSystemUser;
 export type SystemUserResponse = Omit<SystemUser, "passwordHash">;
 export type SystemUsersListResponse = SystemUserResponse[];
+
+// ─── Projects ─────────────────────────────────────────────────────────────────
+
+export const projects = pgTable("projects", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  status: varchar("status", { length: 50 }).notNull().default("active"),
+  createdByUserId: integer("created_by_user_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true });
+
+export type Project = typeof projects.$inferSelect;
+export type InsertProject = z.infer<typeof insertProjectSchema>;
+export type CreateProjectRequest = InsertProject;
+export type ProjectResponse = Project;
+
+// ─── Schedules (WFM) ──────────────────────────────────────────────────────────
+
+export const schedules = pgTable("schedules", {
+  id: serial("id").primaryKey(),
+  agentId: integer("agent_id").notNull(),
+  weekStart: text("week_start").notNull(),
+  shiftsJson: text("shifts_json").notNull().default("{}"),
+  createdByUserId: integer("created_by_user_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertScheduleSchema = createInsertSchema(schedules).omit({ id: true, createdAt: true, updatedAt: true });
+
+export type Schedule = typeof schedules.$inferSelect;
+export type InsertSchedule = z.infer<typeof insertScheduleSchema>;
+
+export interface ShiftDay {
+  start: string;
+  end: string;
+  breakStart?: string;
+  breakEnd?: string;
+  isOff?: boolean;
+}
+
+export interface WeeklyShifts {
+  [day: string]: ShiftDay;
+}

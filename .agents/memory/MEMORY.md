@@ -1,0 +1,1 @@
+- [QC Portal Architecture](qc-portal-arch.md) — roles, entry workflow, schema, and key constraints for this project.
