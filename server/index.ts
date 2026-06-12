@@ -1,7 +1,15 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { serveStatic } from "./static";
 import { createServer } from "http";
+import fs from "fs";
+import path from "path";
+
+function serveStatic(app: express.Express) {
+  const distPath = path.resolve(__dirname, "public");
+  if (!fs.existsSync(distPath)) throw new Error(`Could not find the build directory: ${distPath}`);
+  app.use(express.static(distPath));
+  app.use("/{*path}", (_req: any, res: any) => res.sendFile(path.resolve(distPath, "index.html")));
+}
 
 const app = express();
 const httpServer = createServer(app);

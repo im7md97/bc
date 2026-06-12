@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSchedules, useSaveSchedule, useDeleteSchedule, type Schedule } from "@/hooks/use-wfm";
-import { useSystemUsers } from "@/hooks/use-users";
+import { useSystemUsers } from "@/hooks/use-auth";
 import { useAuth } from "@/hooks/use-auth";
 import { Calendar, ChevronLeft, ChevronRight, Clock, Coffee, Moon, Save, Trash2, Loader2, AlertCircle } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";

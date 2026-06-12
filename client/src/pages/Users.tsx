@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useSystemUsers, useCreateSystemUser, useDeleteSystemUser, useChangeUserPassword, useChangeUserRole } from "@/hooks/use-users";
+import { useSystemUsers, useCreateSystemUser, useDeleteSystemUser, useChangeUserPassword, useChangeUserRole } from "@/hooks/use-auth";
 import { UserPlus, Trash2, Users, Loader2, User, AlertCircle, KeyRound, Edit2 } from "lucide-react";
 import { format } from "date-fns";
 import { ar, enUS } from "date-fns/locale";

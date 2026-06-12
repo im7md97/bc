@@ -1,4 +1,6 @@
-import { db } from "./db";
+import { drizzle } from "drizzle-orm/node-postgres";
+import pg from "pg";
+import * as schema from "@shared/schema";
 import {
   entries, systemUsers, projects, schedules,
   type CreateEntryRequest, type UpdateEntryRequest, type EntryResponse,
@@ -7,6 +9,9 @@ import {
   type InsertSchedule, type Schedule,
 } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
+
+if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL must be set.");
+const db = drizzle(new pg.Pool({ connectionString: process.env.DATABASE_URL }), { schema });
 
 export interface IStorage {
   // Entries

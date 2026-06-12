@@ -6,7 +6,7 @@ import {
   TrendingUp, Calendar, FolderOpen, Star,
 } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
-import { DeleteAlertModal } from "@/components/entries/DeleteAlertModal";
+import { DeleteAlertModal } from "@/components/entries/EntryFormModal";
 import { useEntries, useReviewEntry, useResubmitEntry } from "@/hooks/use-entries";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
