@@ -1,171 +1,139 @@
+import { Link, useLocation } from "wouter";
 import {
-  LayoutDashboard, Users, LogOut, ChevronDown, Languages,
-  FolderOpen, Calendar, Settings,
+  LayoutDashboard, Users, FolderOpen, Headset, BarChart3, Upload, Star,
+  Settings2, ShieldCheck, ClipboardCheck, FilePlus2, LogOut, Languages, KeyRound, Menu,
 } from "lucide-react";
-import { useLocation, Link } from "wouter";
-import { useAuth, useLogout } from "@/hooks/use-auth";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { useAuth, useLogout, useSetLanguage, can, featureOn, type AuthUser } from "@/hooks/use-auth";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { ROLE_LABEL_KEYS, type TranslationKey } from "@/lib/i18n";
+
+interface NavItem {
+  path: string;
+  labelKey: TranslationKey;
+  icon: React.ComponentType<{ className?: string }>;
+  need: string[];
+  feature?: string;
+}
+
+// Order matters: most-used items first per role; visibility is permission-driven (§10).
+const NAV_ITEMS: NavItem[] = [
+  { path: "/", labelKey: "navDashboard", icon: LayoutDashboard, need: [] },
+  { path: "/qc/dashboard", labelKey: "navQc", icon: ClipboardCheck, need: ["qc.evaluate", "qc.approve", "qc.approve_team"], feature: "menu.qc" },
+  { path: "/qc/new-entry", labelKey: "navQcNew", icon: FilePlus2, need: ["qc.evaluate"], feature: "menu.qc" },
+  { path: "/apr", labelKey: "navApr", icon: BarChart3, need: ["apr.view_all", "apr.view_project", "apr.view_team", "apr.view_own"], feature: "menu.apr" },
+  { path: "/apr/upload", labelKey: "navAprUpload", icon: Upload, need: ["apr.upload"], feature: "menu.apr" },
+  { path: "/scorecards", labelKey: "navScorecards", icon: Star, need: ["scorecard.view_all", "scorecard.view_project", "scorecard.view_team", "scorecard.view_own"], feature: "menu.scorecards" },
+  { path: "/scorecards/grid", labelKey: "navGridConfig", icon: Settings2, need: ["scorecard.grid_edit"], feature: "menu.scorecards" },
+  { path: "/agents", labelKey: "navAgents", icon: Headset, need: ["agent.list_all", "agent.list_project", "agent.list_team"] },
+  { path: "/projects", labelKey: "navProjects", icon: FolderOpen, need: ["project.create", "project.edit", "project.edit_own"], feature: "menu.projects" },
+  { path: "/users", labelKey: "navUsers", icon: Users, need: ["user.list_all"], feature: "menu.users" },
+  { path: "/super-admin", labelKey: "navSuperAdmin", icon: ShieldCheck, need: ["permission.grant", "feature_flag.toggle"] },
+];
+
+function visibleItems(user: AuthUser | null | undefined): NavItem[] {
+  return NAV_ITEMS.filter((item) =>
+    (item.need.length === 0 || can(user, ...item.need)) &&
+    (!item.feature || featureOn(user, item.feature)));
+}
 
 export function Navbar() {
-  const [location, setLocation] = useLocation();
   const { data: user } = useAuth();
-  const logoutMutation = useLogout();
-  const { lang, toggleLang, t, dir } = useLanguage();
+  const { t, lang, toggleLang, dir } = useLanguage();
+  const logout = useLogout();
+  const setServerLang = useSetLanguage();
+  const [location, setLocation] = useLocation();
 
-  const roleLabel: Record<string, string> = {
-    quality: t("roleQuality"),
-    supervisor: t("roleSupervisor"),
-    agent: t("roleAgent"),
-    admin: t("roleAdmin"),
-    manager: t("roleManager"),
-    wfm: t("roleWfm"),
+  const items = visibleItems(user);
+  const displayName = lang === "ar" ? user?.displayNameAr : user?.displayNameEn;
+  const roleKey = user ? ROLE_LABEL_KEYS[user.role] : undefined;
+
+  const handleToggleLang = () => {
+    toggleLang();
+    // Persist the choice on the user record (§12).
+    setServerLang.mutate(lang === "ar" ? "en" : "ar");
   };
-
-  const roleBadgeColor: Record<string, string> = {
-    quality: "bg-blue-500/10 text-blue-700",
-    supervisor: "bg-purple-500/10 text-purple-700",
-    agent: "bg-green-500/10 text-green-700",
-    admin: "bg-red-500/10 text-red-700",
-    manager: "bg-orange-500/10 text-orange-700",
-    wfm: "bg-cyan-500/10 text-cyan-700",
-  };
-
-  const handleLogout = async () => {
-    await logoutMutation.mutateAsync();
-    setLocation("/login");
-  };
-
-  const role = user?.role || "";
-  const isAdmin = role === "admin";
-  const isManager = role === "manager";
-  const isAdminOrManager = isAdmin || isManager;
-  const isWfm = role === "wfm";
-  const isSupervisor = role === "supervisor";
-  const isAgent = role === "agent";
-  const isQuality = role === "quality";
-
-  const navLink = (href: string, icon: React.ReactNode, label: string, testId?: string) => (
-    <Link
-      href={href}
-      className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${
-        location === href || location.startsWith(href + "/")
-          ? "bg-primary/10 text-primary"
-          : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
-      }`}
-      data-testid={testId}
-    >
-      {icon}
-      <span className="hidden sm:inline">{label}</span>
-    </Link>
-  );
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+    <header className="sticky top-0 z-40 bg-card/95 backdrop-blur border-b border-border/60">
+      <div className="max-w-[1400px] mx-auto px-4 h-14 flex items-center gap-2">
+        <Link href="/" className="font-extrabold text-primary text-lg whitespace-nowrap me-2">
+          {t("appName")}
+        </Link>
 
-        {/* Logo / Brand */}
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/25">
-            <Settings className="w-4 h-4 text-white" />
-          </div>
-          <span className="font-extrabold text-foreground text-sm hidden md:inline">
-            {t("loginTitle")}
-          </span>
-        </div>
-
-        {/* Nav Links — Center */}
-        <nav className="flex items-center gap-0.5">
-          {/* Language toggle */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={toggleLang}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary/50"
-            data-testid="button-lang-toggle"
-          >
-            <Languages className="w-4 h-4" />
-            <span className="hidden sm:inline font-bold">{lang === "ar" ? "EN" : "عربي"}</span>
-          </Button>
-
-          {/* Dashboard — all roles except admin-only redirected to users */}
-          {!isAdminOrManager && navLink("/", <LayoutDashboard className="w-4 h-4" />, t("navDashboard"), "link-dashboard")}
-          {isAdminOrManager && navLink("/", <LayoutDashboard className="w-4 h-4" />, t("navDashboard"), "link-dashboard")}
-
-          {/* Schedule — agent, supervisor, admin, manager, wfm */}
-          {(isAgent || isSupervisor || isAdminOrManager || isWfm) && navLink(
-            "/schedule",
-            <Calendar className="w-4 h-4" />,
-            t("navSchedule"),
-            "link-schedule",
-          )}
-
-          {/* Projects — admin and manager */}
-          {isAdminOrManager && navLink(
-            "/projects",
-            <FolderOpen className="w-4 h-4" />,
-            t("navProjects"),
-            "link-projects",
-          )}
-
-          {/* Users — admin and manager */}
-          {isAdminOrManager && navLink(
-            "/users",
-            <Users className="w-4 h-4" />,
-            t("navUsers"),
-            "link-users",
-          )}
+        {/* Desktop nav */}
+        <nav className="hidden lg:flex items-center gap-1 flex-1 overflow-x-auto">
+          {items.map((item) => {
+            const Icon = item.icon;
+            const active = location === item.path;
+            return (
+              <Link key={item.path} href={item.path}>
+                <Button variant={active ? "secondary" : "ghost"} size="sm" className="gap-1.5 whitespace-nowrap">
+                  <Icon className="w-4 h-4" />
+                  {t(item.labelKey)}
+                </Button>
+              </Link>
+            );
+          })}
         </nav>
 
-        {/* User Menu */}
-        {user && (
+        <div className="flex-1 lg:hidden" />
+
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" onClick={handleToggleLang} title={lang === "ar" ? "English" : "العربية"}>
+            <Languages className="w-5 h-5" />
+          </Button>
+          <NotificationBell />
+
+          {/* Mobile menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild className="lg:hidden">
+              <Button variant="ghost" size="icon"><Menu className="w-5 h-5" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 lg:hidden">
+              {items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <DropdownMenuItem key={item.path} onClick={() => setLocation(item.path)} className="gap-2">
+                    <Icon className="w-4 h-4" />
+                    {t(item.labelKey)}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* User menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                className="flex items-center gap-2 h-9 px-3 rounded-xl hover:bg-secondary/60"
-                data-testid="button-user-menu"
-              >
-                <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
-                  <span className="font-bold text-xs">{user.username.charAt(0).toUpperCase()}</span>
-                </div>
-                <div className="hidden sm:flex flex-col items-start gap-0.5">
-                  <span className="text-xs font-semibold leading-none">{user.username}</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${roleBadgeColor[user.role] || "bg-secondary text-muted-foreground"}`}>
-                    {roleLabel[user.role] || user.role}
-                  </span>
-                </div>
-                <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+              <Button variant="ghost" className="gap-2 ps-2 pe-3">
+                <span className="w-8 h-8 rounded-full bg-primary/15 text-primary font-bold flex items-center justify-center text-sm">
+                  {(displayName || "?").charAt(0)}
+                </span>
+                <span className="hidden sm:flex flex-col items-start leading-tight">
+                  <span className="text-sm font-semibold">{displayName}</span>
+                  <span className="text-[10px] text-muted-foreground">{roleKey ? t(roleKey) : ""}</span>
+                </span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
-              <div className="px-3 py-2">
-                <p className="text-sm font-semibold text-foreground">{user.username}</p>
-                <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium mt-1 inline-block ${roleBadgeColor[user.role] || "bg-secondary text-muted-foreground"}`}>
-                  {roleLabel[user.role] || user.role}
-                </span>
-              </div>
+              <DropdownMenuItem onClick={() => setLocation("/change-password")} className="gap-2">
+                <KeyRound className="w-4 h-4" />
+                {t("navChangePassword")}
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={handleLogout}
-                disabled={logoutMutation.isPending}
-                className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer gap-2"
-                data-testid="button-logout"
-              >
-                {logoutMutation.isPending
-                  ? <Loader2 className="w-4 h-4 animate-spin" />
-                  : <LogOut className="w-4 h-4" />}
+              <DropdownMenuItem onClick={() => logout.mutate()} className="gap-2 text-red-600 focus:text-red-600">
+                <LogOut className="w-4 h-4" />
                 {t("navLogout")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        )}
+        </div>
       </div>
     </header>
   );

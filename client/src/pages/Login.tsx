@@ -31,13 +31,13 @@ export default function LoginPage() {
   });
 
   useEffect(() => {
-    if (user) setLocation("/");
+    if (user) setLocation(user.forcePasswordChange ? "/change-password" : "/");
   }, [user]);
 
   const onSubmit = async (values: FormValues) => {
     try {
-      await loginMutation.mutateAsync(values);
-      setLocation("/");
+      const logged = await loginMutation.mutateAsync(values);
+      setLocation(logged.forcePasswordChange ? "/change-password" : "/");
     } catch {}
   };
 
@@ -140,9 +140,6 @@ export default function LoginPage() {
           </Form>
         </div>
 
-        <p className="text-center text-sm text-muted-foreground mt-6">
-          {t("loginDefaultHint")} <span className="font-bold text-foreground">admin</span> — {t("loginDefaultPassword")} <span className="font-bold text-foreground">admin123</span>
-        </p>
       </div>
     </div>
   );

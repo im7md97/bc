@@ -1,14 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { api, buildUrl, type UserInput, type UsersListResponse, type UserResponse } from "@shared/routes";
-
-// ─── Auth ─────────────────────────────────────────────────────────────────────
+import { apiRequest } from "@/lib/api";
 
 export interface AuthUser {
   id: number;
   username: string;
   email: string;
   role: string;
+  displayNameAr: string;
+  displayNameEn: string;
+  preferredLanguage: string;
+  forcePasswordChange: boolean;
+  permissions: string[];
+  features: Record<string, boolean>;
 }
 
 export function useAuth() {
@@ -25,161 +29,62 @@ export function useAuth() {
   });
 }
 
+/** Permission / feature-flag helpers — all menu and button visibility flows
+ *  through these so Super Admin toggles apply on next fetch. */
+export function can(user: AuthUser | null | undefined, ...keys: string[]): boolean {
+  if (!user) return false;
+  return keys.some((k) => user.permissions.includes(k));
+}
+
+export function featureOn(user: AuthUser | null | undefined, key: string): boolean {
+  if (!user) return false;
+  return user.features[key] !== false;
+}
+
 export function useLogin() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   return useMutation({
-    mutationFn: async ({ username, password }: { username: string; password: string }) => {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-        credentials: "include",
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: "فشل تسجيل الدخول" }));
-        throw new Error(err.message || "فشل تسجيل الدخول");
-      }
-      return res.json() as Promise<AuthUser>;
-    },
+    mutationFn: (creds: { username: string; password: string }) =>
+      apiRequest<AuthUser>("POST", "/api/auth/login", creds),
     onSuccess: (user) => {
       queryClient.setQueryData(["/api/auth/me"], user);
-      queryClient.invalidateQueries({ queryKey: ["/api/entries"] });
     },
     onError: (error: Error) => {
-      toast({ title: "خطأ في تسجيل الدخول", description: error.message, variant: "destructive" });
+      toast({ title: error.message, variant: "destructive" });
     },
   });
 }
 
 export function useLogout() {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
   return useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-      if (!res.ok) throw new Error("فشل تسجيل الخروج");
-    },
+    mutationFn: () => apiRequest("POST", "/api/auth/logout"),
     onSuccess: () => {
       queryClient.setQueryData(["/api/auth/me"], null);
       queryClient.clear();
-    },
-    onError: (error: Error) => {
-      toast({ title: "خطأ", description: error.message, variant: "destructive" });
+      window.location.href = "/login";
     },
   });
 }
 
-// ─── System Users ──────────────────────────────────────────────────────────────
-
-export function useSystemUsers() {
-  return useQuery({
-    queryKey: [api.users.list.path],
-    queryFn: async () => {
-      const res = await fetch(api.users.list.path, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch users");
-      return res.json() as Promise<UsersListResponse>;
-    },
-  });
-}
-
-export function useCreateSystemUser() {
+export function useChangePassword() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   return useMutation({
-    mutationFn: async (data: UserInput) => {
-      const res = await fetch(api.users.create.path, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: "فشل في إنشاء المستخدم" }));
-        throw new Error(err.message || "فشل في إنشاء المستخدم");
-      }
-      return res.json() as Promise<UserResponse>;
-    },
+    mutationFn: (data: { currentPassword: string; newPassword: string }) =>
+      apiRequest("POST", "/api/auth/change-password", data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [api.users.list.path] });
-      toast({ title: "تم الإنشاء بنجاح", description: "تمت إضافة المستخدم الجديد." });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
     },
     onError: (error: Error) => {
-      toast({ title: "خطأ", description: error.message, variant: "destructive" });
+      toast({ title: error.message, variant: "destructive" });
     },
   });
 }
 
-export function useChangeUserPassword() {
-  const { toast } = useToast();
+export function useSetLanguage() {
   return useMutation({
-    mutationFn: async ({ id, password }: { id: number; password: string }) => {
-      const res = await fetch(`/api/users/${id}/password`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
-        credentials: "include",
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: "فشل تغيير كلمة المرور" }));
-        throw new Error(err.message || "فشل تغيير كلمة المرور");
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      toast({ title: "تم بنجاح", description: "تم تغيير كلمة المرور." });
-    },
-    onError: (error: Error) => {
-      toast({ title: "خطأ", description: error.message, variant: "destructive" });
-    },
-  });
-}
-
-export function useChangeUserRole() {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-  return useMutation({
-    mutationFn: async ({ id, role }: { id: number; role: string }) => {
-      const res = await fetch(`/api/users/${id}/role`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role }),
-        credentials: "include",
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: "فشل تغيير الدور" }));
-        throw new Error(err.message || "فشل تغيير الدور");
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [api.users.list.path] });
-      toast({ title: "تم بنجاح", description: "تم تحديث صلاحية المستخدم." });
-    },
-    onError: (error: Error) => {
-      toast({ title: "خطأ", description: error.message, variant: "destructive" });
-    },
-  });
-}
-
-export function useDeleteSystemUser() {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-  return useMutation({
-    mutationFn: async (id: number) => {
-      const url = buildUrl(api.users.delete.path, { id });
-      const res = await fetch(url, { method: "DELETE", credentials: "include" });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: "فشل في الحذف" }));
-        throw new Error(err.message || "فشل في الحذف");
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [api.users.list.path] });
-      toast({ title: "تم الحذف", description: "تم إزالة المستخدم." });
-    },
-    onError: (error: Error) => {
-      toast({ title: "خطأ في الحذف", description: error.message, variant: "destructive" });
-    },
+    mutationFn: (language: "ar" | "en") => apiRequest("PATCH", "/api/auth/language", { language }),
   });
 }

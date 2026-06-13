@@ -5,13 +5,21 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useEffect } from "react";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import Dashboard from "./pages/Dashboard";
-import CreateEntry from "./pages/CreateEntry";
+import HomePage from "./pages/Home";
+import LoginPage from "./pages/Login";
+import ChangePasswordPage from "./pages/ChangePassword";
 import UsersPage from "./pages/Users";
 import ProjectsPage from "./pages/Projects";
-import SchedulePage from "./pages/Schedule";
-import LoginPage from "./pages/Login";
-import { useAuth } from "@/hooks/use-auth";
+import AgentsPage from "./pages/Agents";
+import AprPage from "./pages/Apr";
+import AprUploadPage from "./pages/AprUpload";
+import ScoreCardsPage from "./pages/ScoreCards";
+import ScoreCardDetailPage from "./pages/ScoreCardDetail";
+import GridConfigPage from "./pages/GridConfig";
+import SuperAdminPage from "./pages/SuperAdmin";
+import QcDashboardPage from "./pages/QcDashboard";
+import QcNewEntryPage from "./pages/QcNewEntry";
+import { useAuth, can, featureOn } from "@/hooks/use-auth";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 
 const queryClient = new QueryClient({
@@ -24,7 +32,7 @@ const queryClient = new QueryClient({
       },
       refetchInterval: false,
       refetchOnWindowFocus: false,
-      staleTime: Infinity,
+      staleTime: 30_000,
       retry: false,
     },
     mutations: { retry: false },
@@ -33,34 +41,55 @@ const queryClient = new QueryClient({
 
 function NotFound() {
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen w-full flex items-center justify-center bg-background">
       <Card className="w-full max-w-md mx-4">
         <CardContent className="pt-6">
           <div className="flex mb-4 gap-2">
             <AlertCircle className="h-8 w-8 text-red-500" />
-            <h1 className="text-2xl font-bold text-gray-900">404 Page Not Found</h1>
+            <h1 className="text-2xl font-bold">404</h1>
           </div>
-          <p className="mt-4 text-sm text-gray-600">Did you forget to add the page to the router?</p>
         </CardContent>
       </Card>
     </div>
   );
 }
 
-function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
+function Guard({
+  component: Component,
+  need,
+  feature,
+}: {
+  component: React.ComponentType;
+  need?: string[];
+  feature?: string;
+}) {
   const { data: user, isLoading } = useAuth();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
 
   useEffect(() => {
-    if (!isLoading && !user) setLocation("/login");
-  }, [user, isLoading]);
+    if (isLoading) return;
+    if (!user) { setLocation("/login"); return; }
+    if (user.forcePasswordChange && location !== "/change-password") {
+      setLocation("/change-password");
+      return;
+    }
+    const permitted = !need || can(user, ...need);
+    const featured = !feature || featureOn(user, feature);
+    // Disabled feature or missing permission → behave like the page is gone (§11.3).
+    if (!permitted || !featured) setLocation("/");
+  }, [user, isLoading, location]);
 
-  if (isLoading) return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <Loader2 className="w-10 h-10 animate-spin text-primary" />
-    </div>
-  );
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+      </div>
+    );
+  }
   if (!user) return null;
+  if (user.forcePasswordChange && location !== "/change-password") return null;
+  if (need && !can(user, ...need)) return null;
+  if (feature && !featureOn(user, feature)) return null;
   return <Component />;
 }
 
@@ -68,11 +97,25 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={LoginPage} />
-      <Route path="/" component={() => <ProtectedRoute component={Dashboard} />} />
-      <Route path="/create" component={() => <ProtectedRoute component={CreateEntry} />} />
-      <Route path="/users" component={() => <ProtectedRoute component={UsersPage} />} />
-      <Route path="/projects" component={() => <ProtectedRoute component={ProjectsPage} />} />
-      <Route path="/schedule" component={() => <ProtectedRoute component={SchedulePage} />} />
+      <Route path="/change-password" component={() => <Guard component={ChangePasswordPage} />} />
+      <Route path="/" component={() => <Guard component={HomePage} />} />
+
+      <Route path="/users" component={() => <Guard component={UsersPage} need={["user.list_all"]} feature="menu.users" />} />
+      <Route path="/projects" component={() => <Guard component={ProjectsPage} need={["project.create", "project.edit", "project.edit_own"]} feature="menu.projects" />} />
+      <Route path="/agents" component={() => <Guard component={AgentsPage} need={["agent.list_all", "agent.list_project", "agent.list_team"]} />} />
+
+      <Route path="/apr/upload" component={() => <Guard component={AprUploadPage} need={["apr.upload"]} feature="menu.apr" />} />
+      <Route path="/apr" component={() => <Guard component={AprPage} need={["apr.view_all", "apr.view_project", "apr.view_team", "apr.view_own"]} feature="menu.apr" />} />
+
+      <Route path="/scorecards/grid" component={() => <Guard component={GridConfigPage} need={["scorecard.grid_edit"]} feature="menu.scorecards" />} />
+      <Route path="/scorecards/:id" component={() => <Guard component={ScoreCardDetailPage} need={["scorecard.view_all", "scorecard.view_project", "scorecard.view_team", "scorecard.view_own"]} feature="menu.scorecards" />} />
+      <Route path="/scorecards" component={() => <Guard component={ScoreCardsPage} need={["scorecard.view_all", "scorecard.view_project", "scorecard.view_team", "scorecard.view_own"]} feature="menu.scorecards" />} />
+
+      <Route path="/qc/new-entry" component={() => <Guard component={QcNewEntryPage} need={["qc.evaluate"]} feature="menu.qc" />} />
+      <Route path="/qc/dashboard" component={() => <Guard component={QcDashboardPage} need={["qc.evaluate", "qc.approve", "qc.approve_team"]} feature="menu.qc" />} />
+
+      <Route path="/super-admin" component={() => <Guard component={SuperAdminPage} need={["permission.grant", "feature_flag.toggle"]} />} />
+
       <Route component={NotFound} />
     </Switch>
   );
