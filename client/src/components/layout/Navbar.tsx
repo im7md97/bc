@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Users, FolderOpen, Headset, BarChart3, Upload, Star,
-  Settings2, ShieldCheck, ClipboardCheck, FilePlus2, LogOut, Languages, KeyRound, Menu,
+  Settings2, ShieldCheck, ClipboardCheck, FilePlus2, LogOut, Languages, KeyRound, Menu, CalendarClock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +31,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: "/scorecards", labelKey: "navScorecards", icon: Star, need: ["scorecard.view_all", "scorecard.view_project", "scorecard.view_team", "scorecard.view_own"], feature: "menu.scorecards" },
   { path: "/scorecards/grid", labelKey: "navGridConfig", icon: Settings2, need: ["scorecard.grid_edit"], feature: "menu.scorecards" },
   { path: "/agents", labelKey: "navAgents", icon: Headset, need: ["agent.list_all", "agent.list_project", "agent.list_team"] },
+  { path: "/schedule", labelKey: "navSchedule", icon: CalendarClock, need: ["schedule.manage", "schedule.view_team", "schedule.view_project", "schedule.view_own"], feature: "menu.schedule" },
   { path: "/projects", labelKey: "navProjects", icon: FolderOpen, need: ["project.create", "project.edit", "project.edit_own"], feature: "menu.projects" },
   { path: "/users", labelKey: "navUsers", icon: Users, need: ["user.list_all"], feature: "menu.users" },
   { path: "/super-admin", labelKey: "navSuperAdmin", icon: ShieldCheck, need: ["permission.grant", "feature_flag.toggle"] },

@@ -11,6 +11,7 @@ import { registerScoreCardRoutes } from "./api/scorecards";
 import { registerNotificationRoutes } from "./api/notifications";
 import { registerSuperAdminRoutes } from "./api/super-admin";
 import { registerQcRoutes } from "./api/qc";
+import { registerScheduleRoutes } from "./api/schedules";
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   setupAuth(app);
@@ -26,6 +27,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   registerNotificationRoutes(app);
   registerSuperAdminRoutes(app);
   registerQcRoutes(app);
+  registerScheduleRoutes(app);
 
   await seedCore();
   return httpServer;

@@ -17,6 +17,7 @@ import ScoreCardsPage from "./pages/ScoreCards";
 import ScoreCardDetailPage from "./pages/ScoreCardDetail";
 import GridConfigPage from "./pages/GridConfig";
 import SuperAdminPage from "./pages/SuperAdmin";
+import SchedulePage from "./pages/Schedule";
 import QcDashboardPage from "./pages/QcDashboard";
 import QcNewEntryPage from "./pages/QcNewEntry";
 import { useAuth, can, featureOn } from "@/hooks/use-auth";
@@ -110,6 +111,8 @@ function Router() {
       <Route path="/scorecards/grid" component={() => <Guard component={GridConfigPage} need={["scorecard.grid_edit"]} feature="menu.scorecards" />} />
       <Route path="/scorecards/:id" component={() => <Guard component={ScoreCardDetailPage} need={["scorecard.view_all", "scorecard.view_project", "scorecard.view_team", "scorecard.view_own"]} feature="menu.scorecards" />} />
       <Route path="/scorecards" component={() => <Guard component={ScoreCardsPage} need={["scorecard.view_all", "scorecard.view_project", "scorecard.view_team", "scorecard.view_own"]} feature="menu.scorecards" />} />
+
+      <Route path="/schedule" component={() => <Guard component={SchedulePage} need={["schedule.manage", "schedule.view_team", "schedule.view_project", "schedule.view_own"]} feature="menu.schedule" />} />
 
       <Route path="/qc/new-entry" component={() => <Guard component={QcNewEntryPage} need={["qc.evaluate"]} feature="menu.qc" />} />
       <Route path="/qc/dashboard" component={() => <Guard component={QcDashboardPage} need={["qc.evaluate", "qc.approve", "qc.approve_team"]} feature="menu.qc" />} />

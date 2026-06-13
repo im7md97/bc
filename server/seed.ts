@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { db, pool } from "./db";
 import {
   users, permissionGrants, featureFlags, aprMetricDefinitions, scoreCardGridConfigs,
 } from "@shared/schema";
@@ -15,6 +15,22 @@ export const DEFAULT_ADMIN_USERNAME = "admin";
  */
 export async function seedCore(): Promise<{ adminPassword?: string }> {
   const result: { adminPassword?: string } = {};
+
+  // 0. Lightweight migration for incremental tables (added after the initial
+  //    db:reset). Drizzle-kit push is the canonical path; this CREATE-IF-NOT-EXISTS
+  //    is just a safety net so an existing dev database picks up the new table.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS schedules (
+      id serial PRIMARY KEY,
+      agent_id integer NOT NULL REFERENCES agents(id),
+      week_start text NOT NULL,
+      shifts_json text NOT NULL DEFAULT '{}',
+      created_by_user_id integer REFERENCES users(id),
+      created_at timestamp NOT NULL DEFAULT now(),
+      updated_at timestamp NOT NULL DEFAULT now(),
+      UNIQUE (agent_id, week_start)
+    );
+  `);
 
   // 1. Default admin — one and only one account on first run.
   const existingUsers = await db.select({ id: users.id }).from(users).limit(1);
@@ -38,7 +54,8 @@ export async function seedCore(): Promise<{ adminPassword?: string }> {
     console.log("─".repeat(60));
   }
 
-  // 2. Default permission grants (§5) — fill any missing role/key pair.
+  // 2. Default permission grants (§5) — fill any missing role/key pair so that
+  //    new permissions added in later releases land on existing databases too.
   const existingGrants = await db.select().from(permissionGrants);
   const have = new Set(existingGrants.map((g) => `${g.role}|${g.permissionKey}`));
   const toInsert: { role: string; permissionKey: string }[] = [];
@@ -47,9 +64,9 @@ export async function seedCore(): Promise<{ adminPassword?: string }> {
       if (!have.has(`${role}|${key}`)) toInsert.push({ role, permissionKey: key });
     }
   }
-  if (existingGrants.length === 0 && toInsert.length > 0) {
+  if (toInsert.length > 0) {
     await db.insert(permissionGrants).values(toInsert);
-    console.log(`✅ Seeded ${toInsert.length} default permission grants`);
+    console.log(`✅ Seeded ${toInsert.length} permission grants`);
   }
 
   // 3. Default feature flags (§11.2) — insert missing keys only.

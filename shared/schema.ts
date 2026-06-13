@@ -287,6 +287,34 @@ export const permissionGrants = pgTable("permission_grants", {
 
 export type PermissionGrant = typeof permissionGrants.$inferSelect;
 
+// ─── schedules (WFM weekly shifts) ───────────────────────────────────────────
+// One row per agent per week; shifts_json holds 7 days of WeeklyShifts.
+
+export const schedules = pgTable("schedules", {
+  id: serial("id").primaryKey(),
+  agentId: integer("agent_id").notNull().references(() => agents.id),
+  weekStart: text("week_start").notNull(), // ISO date, Sunday
+  shiftsJson: text("shifts_json").notNull().default("{}"),
+  createdByUserId: integer("created_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => [unique().on(t.agentId, t.weekStart)]);
+
+export type Schedule = typeof schedules.$inferSelect;
+export type InsertSchedule = typeof schedules.$inferInsert;
+
+export interface ShiftDay {
+  start?: string;       // "08:00"
+  end?: string;         // "16:00"
+  breakStart?: string;
+  breakEnd?: string;
+  isOff?: boolean;
+}
+
+export interface WeeklyShifts {
+  [day: string]: ShiftDay;  // keys: sun, mon, tue, wed, thu, fri, sat
+}
+
 // ─── qc_entries (legacy QC flow, rebuilt clean) ──────────────────────────────
 
 export const qcEntries = pgTable("qc_entries", {

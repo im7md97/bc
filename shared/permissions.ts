@@ -39,6 +39,11 @@ export const PERMISSION_DEFS: { key: string; labelAr: string; labelEn: string; g
   { key: "scorecard.grid_edit",    labelAr: "تعديل أوزان وشبكات التقييم",      labelEn: "Edit grids & weights",            group: "scorecard" },
   { key: "scorecard.export",       labelAr: "تصدير بطاقات الأداء",             labelEn: "Export score cards",              group: "scorecard" },
 
+  { key: "schedule.manage",        labelAr: "إدارة جداول العمل الأسبوعية",     labelEn: "Manage weekly schedules",         group: "schedule" },
+  { key: "schedule.view_team",     labelAr: "عرض جداول فريقه",                labelEn: "View team schedules",             group: "schedule" },
+  { key: "schedule.view_project",  labelAr: "عرض جداول مشروعه",               labelEn: "View project schedules",          group: "schedule" },
+  { key: "schedule.view_own",      labelAr: "عرض جدوله الخاص",                labelEn: "View own schedule",               group: "schedule" },
+
   { key: "qc.evaluate",            labelAr: "إدخال تقييمات الجودة",            labelEn: "Create QC evaluations",           group: "qc" },
   { key: "qc.approve",             labelAr: "اعتماد أي تقييم جودة",            labelEn: "Approve any QC evaluation",       group: "qc" },
   { key: "qc.approve_team",        labelAr: "اعتماد تقييمات فريقه",            labelEn: "Approve team QC evaluations",     group: "qc" },
@@ -65,6 +70,7 @@ export const DEFAULT_GRANTS: Record<Role, string[]> = {
     "agent.create", "agent.delete", "agent.list_all",
     "apr.upload", "apr.view_all", "apr.history_view", "apr.export",
     "scorecard.generate", "scorecard.view_all", "scorecard.grid_edit", "scorecard.export",
+    "schedule.manage",
     "notifications.view_own",
   ],
   project_manager: [
@@ -72,12 +78,14 @@ export const DEFAULT_GRANTS: Record<Role, string[]> = {
     "agent.list_project",
     "apr.view_project", "apr.export",
     "scorecard.view_project", "scorecard.export",
+    "schedule.view_project",
     "notifications.view_own",
   ],
   supervisor: [
     "agent.list_team",
     "apr.view_team", "apr.export",
     "scorecard.view_team", "scorecard.write_issues", "scorecard.send_to_agent", "scorecard.export",
+    "schedule.manage", "schedule.view_team",
     "qc.approve_team",
     "notifications.view_own",
   ],
@@ -88,6 +96,7 @@ export const DEFAULT_GRANTS: Record<Role, string[]> = {
   agent: [
     "apr.view_own",
     "scorecard.view_own", "scorecard.confirm",
+    "schedule.view_own",
     "notifications.view_own",
   ],
 };

@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import {
-  ClipboardCheck, BarChart3, Star, Users, FolderOpen, Headset, Upload, ShieldCheck, Settings2,
+  ClipboardCheck, BarChart3, Star, Users, FolderOpen, Headset, Upload, ShieldCheck, Settings2, CalendarClock,
 } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,6 +24,7 @@ const TILES: Tile[] = [
   { path: "/scorecards", labelKey: "navScorecards", icon: Star, need: ["scorecard.view_all", "scorecard.view_project", "scorecard.view_team", "scorecard.view_own"], feature: "menu.scorecards", color: "bg-amber-500/10 text-amber-600" },
   { path: "/scorecards/grid", labelKey: "navGridConfig", icon: Settings2, need: ["scorecard.grid_edit"], feature: "menu.scorecards", color: "bg-orange-500/10 text-orange-600" },
   { path: "/agents", labelKey: "navAgents", icon: Headset, need: ["agent.list_all", "agent.list_project", "agent.list_team"], color: "bg-emerald-500/10 text-emerald-600" },
+  { path: "/schedule", labelKey: "navSchedule", icon: CalendarClock, need: ["schedule.manage", "schedule.view_team", "schedule.view_project", "schedule.view_own"], feature: "menu.schedule", color: "bg-sky-500/10 text-sky-600" },
   { path: "/projects", labelKey: "navProjects", icon: FolderOpen, need: ["project.create", "project.edit", "project.edit_own"], feature: "menu.projects", color: "bg-violet-500/10 text-violet-600" },
   { path: "/users", labelKey: "navUsers", icon: Users, need: ["user.list_all"], feature: "menu.users", color: "bg-rose-500/10 text-rose-600" },
   { path: "/super-admin", labelKey: "navSuperAdmin", icon: ShieldCheck, need: ["permission.grant", "feature_flag.toggle"], color: "bg-red-500/10 text-red-600" },
