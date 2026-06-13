@@ -76,6 +76,27 @@ export function registerQcRoutes(app: Express) {
     }
   });
 
+  app.get("/api/qc/stats", requireFeature("menu.qc"), requirePermission("qc.evaluate", "qc.approve", "qc.approve_team"), async (req, res) => {
+    try {
+      const rows = await scopedEntries(req);
+      const passFail = (field: "qualityInternal" | "qualityExternal" | "customerSatisfaction") => ({
+        pass: rows.filter((r) => r[field] === "Pass").length,
+        fail: rows.filter((r) => r[field] === "Fail").length,
+      });
+      res.json({
+        total: rows.length,
+        pending: rows.filter((r) => r.status === "pending_supervisor").length,
+        approved: rows.filter((r) => r.status === "approved").length,
+        rejected: rows.filter((r) => r.status === "rejected").length,
+        internal: passFail("qualityInternal"),
+        external: passFail("qualityExternal"),
+        csat: passFail("customerSatisfaction"),
+      });
+    } catch {
+      errInternal(res);
+    }
+  });
+
   app.post("/api/qc/entries", requireFeature("menu.qc"), requirePermission("qc.evaluate"), async (req, res) => {
     try {
       const me = req.user as SessionUser;

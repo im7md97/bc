@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { Link } from "wouter";
 import {
   Plus, Search, ThumbsUp, ThumbsDown, Music, Trash2, Eye, MessageSquare, SendHorizonal,
-  CheckCircle2, XCircle, Clock,
+  CheckCircle2, XCircle, Clock, FileText,
 } from "lucide-react";
 import { PageShell } from "@/components/layout/PageShell";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -20,6 +21,9 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
+} from "recharts";
 import { useApi, useApiMutation } from "@/hooks/use-api";
 import { apiRequest } from "@/lib/api";
 import { useAuth, can } from "@/hooks/use-auth";
@@ -67,6 +71,78 @@ function PassFailBadge({ value }: { value: string }) {
   return <span className="text-muted-foreground text-xs">—</span>;
 }
 
+interface QcStats {
+  total: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+  internal: { pass: number; fail: number };
+  external: { pass: number; fail: number };
+  csat: { pass: number; fail: number };
+}
+
+function KpiCard({ label, value, icon: Icon, accent }: {
+  label: string; value: number; icon: React.ComponentType<{ className?: string }>; accent: string;
+}) {
+  return (
+    <Card className="rounded-2xl">
+      <CardContent className="pt-5 pb-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs text-muted-foreground font-semibold">{label}</p>
+            <p className="text-2xl font-extrabold mt-0.5" dir="ltr">{value}</p>
+          </div>
+          <span className={`w-11 h-11 rounded-2xl flex items-center justify-center ${accent}`}>
+            <Icon className="w-5 h-5" />
+          </span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PassRateDonut({ title, pass, fail }: { title: string; pass: number; fail: number }) {
+  const { t } = useLanguage();
+  const total = pass + fail;
+  const passRate = total > 0 ? Math.round((pass / total) * 100) : null;
+  const data = total === 0
+    ? [{ name: "empty", value: 1 }]
+    : [{ name: "Pass", value: pass }, { name: "Fail", value: fail }];
+  const colors = total === 0 ? ["#e2e8f0"] : ["#22c55e", "#ef4444"];
+
+  return (
+    <Card className="rounded-2xl">
+      <CardContent className="pt-5 pb-4">
+        <p className="text-sm font-semibold text-center mb-2">{title}</p>
+        <div className="relative w-full" style={{ height: 150 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={data} cx="50%" cy="50%" innerRadius={42} outerRadius={62} dataKey="value" strokeWidth={2} stroke="transparent">
+                {data.map((_, i) => <Cell key={i} fill={colors[i]} />)}
+              </Pie>
+              {total > 0 && <Tooltip contentStyle={{ fontFamily: "inherit", borderRadius: "10px" }} />}
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            {passRate !== null ? (
+              <>
+                <span className="text-2xl font-extrabold" dir="ltr">{passRate}%</span>
+                <span className="text-[10px] text-muted-foreground">{t("qcPassRate")}</span>
+              </>
+            ) : (
+              <span className="text-xs text-muted-foreground">{t("qcNoEvaluations")}</span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center justify-center gap-4 mt-1 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />Pass: <span dir="ltr">{pass}</span></span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />Fail: <span dir="ltr">{fail}</span></span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function QcDashboardPage() {
   const { t, lang, dir } = useLanguage();
   const { data: me } = useAuth();
@@ -79,6 +155,7 @@ export default function QcDashboardPage() {
   const [resubmitNote, setResubmitNote] = useState("");
 
   const { data: entries, isLoading } = useApi<QcEntry[]>("/api/qc/entries");
+  const { data: stats } = useApi<QcStats>("/api/qc/stats");
 
   const filtered = useMemo(() => {
     if (!entries) return [];
@@ -127,6 +204,21 @@ export default function QcDashboardPage() {
         </Link>
       )}
     >
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <KpiCard label={t("qcTotal")}    value={stats?.total ?? 0}    icon={FileText}     accent="bg-indigo-500/10 text-indigo-600" />
+        <KpiCard label={t("qcPending")}  value={stats?.pending ?? 0}  icon={Clock}        accent="bg-amber-500/10 text-amber-600" />
+        <KpiCard label={t("qcApproved")} value={stats?.approved ?? 0} icon={CheckCircle2} accent="bg-emerald-500/10 text-emerald-600" />
+        <KpiCard label={t("qcRejected")} value={stats?.rejected ?? 0} icon={XCircle}      accent="bg-red-500/10 text-red-600" />
+      </div>
+
+      {/* Donut charts */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+        <PassRateDonut title={t("qcInternalRate")} pass={stats?.internal.pass ?? 0} fail={stats?.internal.fail ?? 0} />
+        <PassRateDonut title={t("qcExternalRate")} pass={stats?.external.pass ?? 0} fail={stats?.external.fail ?? 0} />
+        <PassRateDonut title={t("qcCsatRate")}     pass={stats?.csat.pass ?? 0}     fail={stats?.csat.fail ?? 0} />
+      </div>
+
       <div className="flex gap-2 mb-4">
         <div className="relative flex-1 max-w-sm">
           <Search className={`absolute ${dir === "rtl" ? "right-3" : "left-3"} top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground`} />

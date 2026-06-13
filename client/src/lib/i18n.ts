@@ -317,6 +317,13 @@ export const translations = {
     qcFail: "راسب",
     qcTotal: "الإجمالي",
     qcPending: "بالانتظار",
+    qcApproved: "معتمد",
+    qcRejected: "مرفوض",
+    qcInternalRate: "جودة داخلية",
+    qcExternalRate: "جودة خارجية",
+    qcCsatRate: "رضا العملاء",
+    qcPassRate: "نسبة النجاح",
+    qcNoEvaluations: "لا توجد تقييمات بعد",
 
     // ── Months ──
     month1: "يناير", month2: "فبراير", month3: "مارس", month4: "أبريل",
@@ -640,6 +647,13 @@ export const translations = {
     qcFail: "Fail",
     qcTotal: "Total",
     qcPending: "Pending",
+    qcApproved: "Approved",
+    qcRejected: "Rejected",
+    qcInternalRate: "Internal quality",
+    qcExternalRate: "External quality",
+    qcCsatRate: "Customer satisfaction",
+    qcPassRate: "Pass rate",
+    qcNoEvaluations: "No evaluations yet",
 
     // ── Months ──
     month1: "January", month2: "February", month3: "March", month4: "April",
