@@ -18,7 +18,7 @@ interface Tile {
 }
 
 const TILES: Tile[] = [
-  { path: "/qc/dashboard", labelKey: "navQc", icon: ClipboardCheck, need: ["qc.evaluate", "qc.approve", "qc.approve_team"], feature: "menu.qc", color: "bg-indigo-500/10 text-indigo-600" },
+  { path: "/qc/dashboard", labelKey: "navQc", icon: ClipboardCheck, need: ["qc.evaluate", "qc.approve", "qc.approve_team", "qc.view_own"], feature: "menu.qc", color: "bg-indigo-500/10 text-indigo-600" },
   { path: "/apr", labelKey: "navApr", icon: BarChart3, need: ["apr.view_all", "apr.view_project", "apr.view_team", "apr.view_own"], feature: "menu.apr", color: "bg-blue-500/10 text-blue-600" },
   { path: "/apr/upload", labelKey: "navAprUpload", icon: Upload, need: ["apr.upload"], feature: "menu.apr", color: "bg-cyan-500/10 text-cyan-600" },
   { path: "/scorecards", labelKey: "navScorecards", icon: Star, need: ["scorecard.view_all", "scorecard.view_project", "scorecard.view_team", "scorecard.view_own"], feature: "menu.scorecards", color: "bg-amber-500/10 text-amber-600" },

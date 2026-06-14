@@ -7,6 +7,7 @@ import { qcEntries, agents } from "@shared/schema";
 import { eq, desc, inArray } from "drizzle-orm";
 import { requirePermission, requireFeature, grantsOf } from "../permissions";
 import { sendError, errInternal, errNotFound, errInvalidId } from "../http-errors";
+import { notifyUser } from "../notify";
 import type { SessionUser } from "../auth";
 
 const uploadDir = path.join(process.cwd(), "uploads", "audio");
@@ -27,8 +28,12 @@ const audioUpload = multer({
   limits: { fileSize: 50 * 1024 * 1024 },
 });
 
-/** Visibility: evaluators see what they created; approvers see all;
- *  team approvers see entries whose agent belongs to their team. */
+/** Visibility:
+ *   qc.approve       → every entry
+ *   qc.approve_team  → entries whose agent.supervisor_user_id is the caller
+ *   qc.evaluate      → entries the caller created
+ *   qc.view_own      → APPROVED entries whose agent.user_id is the caller
+ *  Multiple grants stack (union). Approval flow targets each one. */
 async function scopedEntries(req: any) {
   const me = req.user as SessionUser;
   const grants = grantsOf(req);
@@ -39,20 +44,21 @@ async function scopedEntries(req: any) {
       agentNameEn: agents.nameEn,
       employeeId: agents.employeeId,
       supervisorUserId: agents.supervisorUserId,
+      agentUserId: agents.userId,
     })
     .from(qcEntries)
     .leftJoin(agents, eq(qcEntries.agentId, agents.id))
     .orderBy(desc(qcEntries.createdAt));
 
-  let visible = all;
+  let visible: typeof all = [];
   if (grants.has("qc.approve")) {
-    // all
-  } else if (grants.has("qc.approve_team")) {
-    visible = all.filter((r) => r.supervisorUserId === me.id);
-  } else if (grants.has("qc.evaluate")) {
-    visible = all.filter((r) => r.entry.createdByUserId === me.id);
+    visible = all;
   } else {
-    visible = [];
+    const seen = new Set<number>();
+    const add = (row: typeof all[number]) => { if (!seen.has(row.entry.id)) { seen.add(row.entry.id); visible.push(row); } };
+    if (grants.has("qc.approve_team")) all.filter((r) => r.supervisorUserId === me.id).forEach(add);
+    if (grants.has("qc.evaluate"))     all.filter((r) => r.entry.createdByUserId === me.id).forEach(add);
+    if (grants.has("qc.view_own"))     all.filter((r) => r.agentUserId === me.id && r.entry.status === "approved").forEach(add);
   }
   return visible.map((r) => ({
     ...r.entry,
@@ -68,7 +74,7 @@ export function registerQcRoutes(app: Express) {
     res.json({ url: `/uploads/audio/${req.file.filename}` });
   });
 
-  app.get("/api/qc/entries", requireFeature("menu.qc"), requirePermission("qc.evaluate", "qc.approve", "qc.approve_team"), async (req, res) => {
+  app.get("/api/qc/entries", requireFeature("menu.qc"), requirePermission("qc.evaluate", "qc.approve", "qc.approve_team", "qc.view_own"), async (req, res) => {
     try {
       res.json(await scopedEntries(req));
     } catch {
@@ -76,7 +82,7 @@ export function registerQcRoutes(app: Express) {
     }
   });
 
-  app.get("/api/qc/stats", requireFeature("menu.qc"), requirePermission("qc.evaluate", "qc.approve", "qc.approve_team"), async (req, res) => {
+  app.get("/api/qc/stats", requireFeature("menu.qc"), requirePermission("qc.evaluate", "qc.approve", "qc.approve_team", "qc.view_own"), async (req, res) => {
     try {
       const rows = await scopedEntries(req);
       const passFail = (field: "qualityInternal" | "qualityExternal" | "customerSatisfaction") => ({
@@ -181,6 +187,22 @@ export function registerQcRoutes(app: Express) {
         supervisorComment: comment?.trim() || null,
         updatedAt: new Date(),
       }).where(eq(qcEntries.id, id)).returning();
+
+      // On approval, notify the agent (if linked to a portal account).
+      if (action === "approved") {
+        const [agent] = await db.select().from(agents).where(eq(agents.id, entry.agentId));
+        if (agent?.userId) {
+          await notifyUser({
+            userId: agent.userId,
+            type: "qc_approved",
+            titleAr: "تم اعتماد تقييم جودة جديد",
+            titleEn: "A new QC evaluation was approved",
+            bodyAr: `تقييم المكالمة رقم ${entry.caseNumber} بتاريخ ${entry.callDate} متاح للاطلاع`,
+            bodyEn: `Evaluation for call ${entry.caseNumber} (${entry.callDate}) is available`,
+            linkPath: "/qc/dashboard",
+          });
+        }
+      }
       res.json(updated);
     } catch {
       errInternal(res);

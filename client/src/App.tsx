@@ -115,7 +115,7 @@ function Router() {
       <Route path="/schedule" component={() => <Guard component={SchedulePage} need={["schedule.manage", "schedule.view_team", "schedule.view_project", "schedule.view_own"]} feature="menu.schedule" />} />
 
       <Route path="/qc/new-entry" component={() => <Guard component={QcNewEntryPage} need={["qc.evaluate"]} feature="menu.qc" />} />
-      <Route path="/qc/dashboard" component={() => <Guard component={QcDashboardPage} need={["qc.evaluate", "qc.approve", "qc.approve_team"]} feature="menu.qc" />} />
+      <Route path="/qc/dashboard" component={() => <Guard component={QcDashboardPage} need={["qc.evaluate", "qc.approve", "qc.approve_team", "qc.view_own"]} feature="menu.qc" />} />
 
       <Route path="/super-admin" component={() => <Guard component={SuperAdminPage} need={["permission.grant", "feature_flag.toggle"]} />} />
 

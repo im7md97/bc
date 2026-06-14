@@ -82,6 +82,7 @@ export const translations = {
     navScorecards: "بطاقات الأداء",
     navGridConfig: "شبكة التقييم",
     navQc: "تقييم الجودة",
+    navQcMine: "تقييماتي",
     navQcNew: "تقييم جديد",
     navSuperAdmin: "الإدارة العليا",
     navLogout: "تسجيل الخروج",
@@ -285,6 +286,8 @@ export const translations = {
 
     // ── QC (legacy flow) ──
     qcTitle: "تقييم الجودة",
+    qcMineTitle: "تقييماتي المعتمدة",
+    qcMineSubtitle: "تقييمات الجودة التي اعتمدها مشرفك",
     qcSubtitle: "تقييمات المكالمات وسير الاعتماد",
     qcNewEntry: "تقييم جديد",
     qcAgentPicker: "الوكيل",
@@ -412,6 +415,7 @@ export const translations = {
     navScorecards: "Score Cards",
     navGridConfig: "Scoring Grid",
     navQc: "Quality Evaluation",
+    navQcMine: "My Evaluations",
     navQcNew: "New Evaluation",
     navSuperAdmin: "Super Admin",
     navLogout: "Logout",

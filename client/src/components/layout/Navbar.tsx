@@ -24,7 +24,7 @@ interface NavItem {
 // Order matters: most-used items first per role; visibility is permission-driven (§10).
 const NAV_ITEMS: NavItem[] = [
   { path: "/", labelKey: "navDashboard", icon: LayoutDashboard, need: [] },
-  { path: "/qc/dashboard", labelKey: "navQc", icon: ClipboardCheck, need: ["qc.evaluate", "qc.approve", "qc.approve_team"], feature: "menu.qc" },
+  { path: "/qc/dashboard", labelKey: "navQc", icon: ClipboardCheck, need: ["qc.evaluate", "qc.approve", "qc.approve_team", "qc.view_own"], feature: "menu.qc" },
   { path: "/qc/new-entry", labelKey: "navQcNew", icon: FilePlus2, need: ["qc.evaluate"], feature: "menu.qc" },
   { path: "/apr", labelKey: "navApr", icon: BarChart3, need: ["apr.view_all", "apr.view_project", "apr.view_team", "apr.view_own"], feature: "menu.apr" },
   { path: "/apr/upload", labelKey: "navAprUpload", icon: Upload, need: ["apr.upload"], feature: "menu.apr" },

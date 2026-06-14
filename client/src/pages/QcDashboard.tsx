@@ -171,6 +171,7 @@ export default function QcDashboardPage() {
 
   const canCreate = can(me, "qc.evaluate");
   const canApprove = can(me, "qc.approve", "qc.approve_team");
+  const isAgentView = can(me, "qc.view_own") && !canCreate && !canApprove;
 
   const review = useApiMutation(
     ({ id, action }: { id: number; action: "approved" | "rejected" }) =>
@@ -196,8 +197,8 @@ export default function QcDashboardPage() {
 
   return (
     <PageShell
-      title={t("qcTitle")}
-      subtitle={t("qcSubtitle")}
+      title={isAgentView ? t("qcMineTitle") : t("qcTitle")}
+      subtitle={isAgentView ? t("qcMineSubtitle") : t("qcSubtitle")}
       actions={canCreate && (
         <Link href="/qc/new-entry">
           <Button className="gap-2"><Plus className="w-4 h-4" /> {t("qcNewEntry")}</Button>

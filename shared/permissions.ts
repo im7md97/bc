@@ -47,6 +47,7 @@ export const PERMISSION_DEFS: { key: string; labelAr: string; labelEn: string; g
   { key: "qc.evaluate",            labelAr: "إدخال تقييمات الجودة",            labelEn: "Create QC evaluations",           group: "qc" },
   { key: "qc.approve",             labelAr: "اعتماد أي تقييم جودة",            labelEn: "Approve any QC evaluation",       group: "qc" },
   { key: "qc.approve_team",        labelAr: "اعتماد تقييمات فريقه",            labelEn: "Approve team QC evaluations",     group: "qc" },
+  { key: "qc.view_own",            labelAr: "عرض تقييماته المعتمدة",           labelEn: "View own approved evaluations",   group: "qc" },
 
   { key: "notifications.view_own", labelAr: "عرض إشعاراته",                   labelEn: "View own notifications",          group: "system" },
   { key: "feature_flag.toggle",    labelAr: "إدارة مفاتيح الميزات",            labelEn: "Toggle feature flags",            group: "system" },
@@ -97,6 +98,7 @@ export const DEFAULT_GRANTS: Record<Role, string[]> = {
     "apr.view_own",
     "scorecard.view_own", "scorecard.confirm",
     "schedule.view_own",
+    "qc.view_own",
     "notifications.view_own",
   ],
 };

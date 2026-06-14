@@ -109,7 +109,7 @@ export function registerAgentRoutes(app: Express) {
       if (isNaN(id)) return errInvalidId(res);
       const [agent] = await db.select().from(agents).where(eq(agents.id, id));
       if (!agent) return errNotFound(res);
-      const { nameAr, nameEn, inboundId, supervisorUserId, projectId, isActive } = req.body ?? {};
+      const { nameAr, nameEn, inboundId, supervisorUserId, projectId, isActive, userId } = req.body ?? {};
       if (supervisorUserId) {
         const [sup] = await db.select().from(users).where(eq(users.id, Number(supervisorUserId)));
         if (!sup || sup.role !== "supervisor") {
@@ -123,6 +123,16 @@ export function registerAgentRoutes(app: Express) {
       if (supervisorUserId !== undefined) updates.supervisorUserId = supervisorUserId ? Number(supervisorUserId) : null;
       if (projectId !== undefined) updates.projectId = Number(projectId);
       if (isActive !== undefined) updates.isActive = Boolean(isActive);
+      if (userId !== undefined) {
+        const linkedId = userId === null || userId === "" ? null : Number(userId);
+        if (linkedId !== null) {
+          const [linked] = await db.select().from(users).where(eq(users.id, linkedId));
+          if (!linked || linked.role !== "agent") {
+            return sendError(res, 400, "invalid_user", "حساب الوكيل غير صالح", "Invalid agent login");
+          }
+        }
+        updates.userId = linkedId;
+      }
       const [updated] = await db.update(agents).set(updates).where(eq(agents.id, id)).returning();
       res.json(updated);
     } catch {
