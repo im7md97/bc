@@ -303,10 +303,16 @@ export const schedules = pgTable("schedules", {
 export type Schedule = typeof schedules.$inferSelect;
 export type InsertSchedule = typeof schedules.$inferInsert;
 
+export interface ShiftBreak {
+  start: string; // "12:00"
+  end: string;   // "12:30"
+}
+
 export interface ShiftDay {
   start?: string;       // "08:00"
   end?: string;         // "16:00"
-  breakStart?: string;
+  breaks?: ShiftBreak[];        // multi-break support (preferred)
+  breakStart?: string;          // legacy single-break (read-only fallback)
   breakEnd?: string;
   isOff?: boolean;
 }
@@ -314,6 +320,54 @@ export interface ShiftDay {
 export interface WeeklyShifts {
   [day: string]: ShiftDay;  // keys: sun, mon, tue, wed, thu, fri, sat
 }
+
+// ─── schedule_settings (WFM break policy per project per week) ───────────────
+
+export const scheduleSettings = pgTable("schedule_settings", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").notNull().references(() => projects.id),
+  weekStart: text("week_start").notNull(),
+  breaksPerShift: integer("breaks_per_shift").notNull().default(1),
+  breakDurationMin: integer("break_duration_min").notNull().default(30),
+  // Hard cap: at most N agents on break at the same minute on the same day.
+  maxConcurrentBreaks: integer("max_concurrent_breaks").notNull().default(2),
+  updatedByUserId: integer("updated_by_user_id").references(() => users.id),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => [unique().on(t.projectId, t.weekStart)]);
+
+export type ScheduleSettings = typeof scheduleSettings.$inferSelect;
+export type InsertScheduleSettings = typeof scheduleSettings.$inferInsert;
+
+// ─── shift_swap_requests (agent → supervisor → WFM) ──────────────────────────
+
+export const SWAP_STATUSES = [
+  "pending_supervisor",
+  "pending_wfm",
+  "approved",
+  "rejected",
+  "cancelled",
+] as const;
+export type SwapStatus = (typeof SWAP_STATUSES)[number];
+
+export const shiftSwapRequests = pgTable("shift_swap_requests", {
+  id: serial("id").primaryKey(),
+  requesterAgentId: integer("requester_agent_id").notNull().references(() => agents.id),
+  targetAgentId: integer("target_agent_id").notNull().references(() => agents.id),
+  weekStart: text("week_start").notNull(),
+  dayKey: text("day_key").notNull(),                       // sun..sat
+  status: varchar("status", { length: 30 }).notNull().default("pending_supervisor"),
+  requesterComment: text("requester_comment"),
+  supervisorComment: text("supervisor_comment"),
+  wfmComment: text("wfm_comment"),
+  supervisorUserId: integer("supervisor_user_id").references(() => users.id),
+  wfmUserId: integer("wfm_user_id").references(() => users.id),
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type ShiftSwapRequest = typeof shiftSwapRequests.$inferSelect;
+export type InsertShiftSwapRequest = typeof shiftSwapRequests.$inferInsert;
 
 // ─── qc_entries (legacy QC flow, rebuilt clean) ──────────────────────────────
 

@@ -26,7 +26,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   const toggleLang = () => setLang((l) => (l === "ar" ? "en" : "ar"));
 
-  const t = (key: TranslationKey): string => translations[lang][key] as string;
+  const t = (key: TranslationKey): string => (translations[lang] as Record<string, string>)[key] ?? key;
 
   return (
     <LanguageContext.Provider value={{ lang, toggleLang, t, dir }}>

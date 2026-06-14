@@ -30,6 +30,33 @@ export async function seedCore(): Promise<{ adminPassword?: string }> {
       updated_at timestamp NOT NULL DEFAULT now(),
       UNIQUE (agent_id, week_start)
     );
+    CREATE TABLE IF NOT EXISTS schedule_settings (
+      id serial PRIMARY KEY,
+      project_id integer NOT NULL REFERENCES projects(id),
+      week_start text NOT NULL,
+      breaks_per_shift integer NOT NULL DEFAULT 1,
+      break_duration_min integer NOT NULL DEFAULT 30,
+      max_concurrent_breaks integer NOT NULL DEFAULT 2,
+      updated_by_user_id integer REFERENCES users(id),
+      updated_at timestamp NOT NULL DEFAULT now(),
+      UNIQUE (project_id, week_start)
+    );
+    CREATE TABLE IF NOT EXISTS shift_swap_requests (
+      id serial PRIMARY KEY,
+      requester_agent_id integer NOT NULL REFERENCES agents(id),
+      target_agent_id integer NOT NULL REFERENCES agents(id),
+      week_start text NOT NULL,
+      day_key text NOT NULL,
+      status varchar(30) NOT NULL DEFAULT 'pending_supervisor',
+      requester_comment text,
+      supervisor_comment text,
+      wfm_comment text,
+      supervisor_user_id integer REFERENCES users(id),
+      wfm_user_id integer REFERENCES users(id),
+      resolved_at timestamp,
+      created_at timestamp NOT NULL DEFAULT now(),
+      updated_at timestamp NOT NULL DEFAULT now()
+    );
   `);
 
   // 1. Default admin — one and only one account on first run.
