@@ -184,7 +184,9 @@ export function registerScoreCardRoutes(app: Express) {
       }
 
       const monthStart = `${periodYear}-${String(periodMonth).padStart(2, "0")}-01`;
-      const monthEnd = `${periodYear}-${String(periodMonth).padStart(2, "0")}-31`;
+      // Last day of the month = day 0 of the next month (handles 28/29/30/31).
+      const lastDay = new Date(periodYear, periodMonth, 0).getDate();
+      const monthEnd = `${periodYear}-${String(periodMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
       const snaps = await db.select().from(aprSnapshots)
         .where(and(
           eq(aprSnapshots.projectId, projectId),
@@ -298,7 +300,8 @@ export function registerScoreCardRoutes(app: Express) {
       });
 
       res.json({ created, regenerated, agents: computed.length });
-    } catch {
+    } catch (err) {
+      console.error("[scorecards.generate]", err);
       errInternal(res);
     }
   });
