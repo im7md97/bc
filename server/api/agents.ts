@@ -140,6 +140,57 @@ export function registerAgentRoutes(app: Express) {
     }
   });
 
+  // Create a login account on the fly for an existing agent record and link them.
+  app.post("/api/agents/:id/create-login", requirePermission("agent.create"), async (req, res) => {
+    try {
+      const me = req.user as SessionUser;
+      const id = Number(req.params.id);
+      if (isNaN(id)) return errInvalidId(res);
+      const [agent] = await db.select().from(agents).where(eq(agents.id, id));
+      if (!agent) return errNotFound(res);
+      if (agent.userId) {
+        return sendError(res, 400, "already_linked",
+          "الوكيل مربوط بحساب بالفعل", "Agent already has a login");
+      }
+      const { username, email, password } = req.body ?? {};
+      if (!username?.trim() || !password || String(password).length < 6) {
+        return sendError(res, 400, "missing_fields",
+          "اسم المستخدم وكلمة المرور (6 أحرف+) مطلوبان",
+          "Username and password (6+ chars) are required");
+      }
+      const [account] = await db.insert(users).values({
+        username: String(username).trim(),
+        email: String(email || `${username}@agents.portal`).trim(),
+        passwordHash: hashPassword(String(password)),
+        role: "agent",
+        displayNameAr: agent.nameAr,
+        displayNameEn: agent.nameEn,
+        forcePasswordChange: true,
+      }).returning();
+      await db.update(agents).set({ userId: account.id, updatedAt: new Date() }).where(eq(agents.id, id));
+      res.status(201).json({ userId: account.id, username: account.username });
+    } catch (err: any) {
+      if (err?.code === "23505") {
+        return sendError(res, 400, "duplicate", "اسم المستخدم مستخدم بالفعل", "Username already in use");
+      }
+      console.error("[agents.create-login]", err);
+      errInternal(res);
+    }
+  });
+
+  // Returns agent-role users not yet linked to any agent record.
+  app.get("/api/agents/available-logins", requirePermission("agent.create"), async (_req, res) => {
+    try {
+      const linkedIds = (await db.select({ userId: agents.userId }).from(agents))
+        .map((r) => r.userId).filter((v): v is number => v !== null);
+      const all = await db.select().from(users).where(eq(users.role, "agent"));
+      const available = all.filter((u) => !linkedIds.includes(u.id));
+      res.json(available.map((u) => ({ id: u.id, username: u.username, displayNameAr: u.displayNameAr, displayNameEn: u.displayNameEn })));
+    } catch {
+      errInternal(res);
+    }
+  });
+
   // Soft delete (is_active=false) so APR/Score Card history stays linked.
   app.delete("/api/agents/:id", requirePermission("agent.delete"), async (req, res) => {
     try {

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Trash2, Search, Pencil } from "lucide-react";
+import { Plus, Trash2, Search, Pencil, KeyRound, Link2 } from "lucide-react";
 import { PageShell } from "@/components/layout/PageShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -59,6 +59,8 @@ export default function AgentsPage() {
   const [editAgent, setEditAgent] = useState<Agent | null>(null);
   const [delAgent, setDelAgent] = useState<Agent | null>(null);
   const [withLogin, setWithLogin] = useState(false);
+  const [createLoginAgent, setCreateLoginAgent] = useState<Agent | null>(null);
+  const [linkAgent, setLinkAgent] = useState<Agent | null>(null);
 
   const query = new URLSearchParams();
   if (search) query.set("search", search);
@@ -85,6 +87,16 @@ export default function AgentsPage() {
   const remove = useApiMutation(
     (id: number) => apiRequest("DELETE", `/api/agents/${id}`),
     { invalidate: [["/api/agents"]], onSuccess: () => setDelAgent(null), successMessage: t("deleteSuccess") },
+  );
+  const createLogin = useApiMutation(
+    ({ id, ...data }: { id: number; username: string; password: string; email?: string }) =>
+      apiRequest("POST", `/api/agents/${id}/create-login`, data),
+    { invalidate: [["/api/agents"]], onSuccess: () => setCreateLoginAgent(null), successMessage: t("agLinkedSuccess") },
+  );
+  const linkExisting = useApiMutation(
+    ({ id, userId }: { id: number; userId: number }) =>
+      apiRequest("PUT", `/api/agents/${id}`, { userId }),
+    { invalidate: [["/api/agents"]], onSuccess: () => setLinkAgent(null), successMessage: t("agLinkedSuccess") },
   );
 
   const submit = (e: React.FormEvent<HTMLFormElement>, isEdit: boolean) => {
@@ -157,14 +169,15 @@ export default function AgentsPage() {
               <TableHead>{t("agInboundId")}</TableHead>
               <TableHead>{t("agProject")}</TableHead>
               <TableHead>{t("agSupervisor")}</TableHead>
+              <TableHead>{t("agLogin")}</TableHead>
               <TableHead>{t("usersStatus")}</TableHead>
               <TableHead className={dir === "rtl" ? "text-left" : "text-right"}>{t("actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && <TableRow><TableCell colSpan={7}><Skeleton className="h-12 w-full" /></TableCell></TableRow>}
+            {isLoading && <TableRow><TableCell colSpan={8}><Skeleton className="h-12 w-full" /></TableCell></TableRow>}
             {!isLoading && agents?.length === 0 && (
-              <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">{t("noData")}</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">{t("noData")}</TableCell></TableRow>
             )}
             {agents?.map((a) => (
               <TableRow key={a.id}>
@@ -174,12 +187,27 @@ export default function AgentsPage() {
                 <TableCell>{lang === "ar" ? a.projectNameAr : a.projectNameEn}</TableCell>
                 <TableCell>{a.supervisorUserId ? (lang === "ar" ? a.supervisorNameAr : a.supervisorNameEn) : t("agNoSupervisor")}</TableCell>
                 <TableCell>
+                  {a.userId
+                    ? <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 border-emerald-300 text-xs">{t("agLinked")}</Badge>
+                    : <Badge variant="outline" className="bg-amber-500/10 text-amber-700 border-amber-300 text-xs">{t("agNoLogin")}</Badge>}
+                </TableCell>
+                <TableCell>
                   <Badge variant={a.isActive ? "default" : "secondary"}>
                     {a.isActive ? t("statusActive") : t("statusInactive")}
                   </Badge>
                 </TableCell>
                 <TableCell className={dir === "rtl" ? "text-left" : "text-right"}>
                   <div className="flex gap-1 justify-end">
+                    {canCreate && !a.userId && (
+                      <>
+                        <Button variant="ghost" size="sm" onClick={() => setCreateLoginAgent(a)} className="gap-1 text-xs">
+                          <KeyRound className="w-3.5 h-3.5" /> {t("agCreateLoginAction")}
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setLinkAgent(a)} className="gap-1 text-xs">
+                          <Link2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </>
+                    )}
                     {canCreate && (
                       <Button variant="ghost" size="sm" onClick={() => setEditAgent(a)}>
                         <Pencil className="w-4 h-4" />
@@ -282,6 +310,24 @@ export default function AgentsPage() {
         </DialogContent>
       </Dialog>
 
+      {createLoginAgent && (
+        <CreateLoginDialog
+          agent={createLoginAgent}
+          onClose={() => setCreateLoginAgent(null)}
+          onSubmit={(data) => createLogin.mutate({ id: createLoginAgent.id, ...data })}
+          busy={createLogin.isPending}
+        />
+      )}
+
+      {linkAgent && (
+        <LinkExistingDialog
+          agent={linkAgent}
+          onClose={() => setLinkAgent(null)}
+          onSubmit={(userId) => linkExisting.mutate({ id: linkAgent.id, userId })}
+          busy={linkExisting.isPending}
+        />
+      )}
+
       <AlertDialog open={!!delAgent} onOpenChange={(o) => !o && setDelAgent(null)}>
         <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
@@ -299,5 +345,109 @@ export default function AgentsPage() {
         </AlertDialogContent>
       </AlertDialog>
     </PageShell>
+  );
+}
+
+// ── Quick create login dialog ────────────────────────────────────────────────
+
+function CreateLoginDialog({ agent, onClose, onSubmit, busy }: {
+  agent: Agent;
+  onClose: () => void;
+  onSubmit: (data: { username: string; password: string; email?: string }) => void;
+  busy: boolean;
+}) {
+  const { t, lang, dir } = useLanguage();
+  // Suggest username from employeeId; lowercase, no spaces.
+  const [username, setUsername] = useState(agent.employeeId.toLowerCase().replace(/\s+/g, ""));
+  const [password, setPassword] = useState(`Pwd_${agent.employeeId}_2026!`);
+  const [email, setEmail] = useState("");
+  return (
+    <Dialog open={true} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent dir={dir} className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{t("agCreateLoginTitle")}</DialogTitle>
+          <DialogDescription>
+            {lang === "ar" ? agent.nameAr : agent.nameEn} <span dir="ltr">({agent.employeeId})</span>
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>{t("agLoginUsername")}</Label>
+            <Input dir="ltr" value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("agLoginPassword")}</Label>
+            <Input dir="ltr" value={password} onChange={(e) => setPassword(e.target.value)} minLength={6} />
+            <p className="text-[10px] text-muted-foreground">{t("agCreateLoginHint")}</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("usersEmail")} ({t("optional")})</Label>
+            <Input type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>{t("cancel")}</Button>
+          <Button
+            disabled={!username.trim() || password.length < 6 || busy}
+            onClick={() => onSubmit({ username: username.trim(), password, email: email || undefined })}
+          >
+            {t("save")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Link existing user dialog ────────────────────────────────────────────────
+
+interface UnlinkedUser {
+  id: number;
+  username: string;
+  displayNameAr: string;
+  displayNameEn: string;
+}
+
+function LinkExistingDialog({ agent, onClose, onSubmit, busy }: {
+  agent: Agent;
+  onClose: () => void;
+  onSubmit: (userId: number) => void;
+  busy: boolean;
+}) {
+  const { t, lang, dir } = useLanguage();
+  const { data: available, isLoading } = useApi<UnlinkedUser[]>("/api/agents/available-logins");
+  const [userId, setUserId] = useState<string>("");
+  return (
+    <Dialog open={true} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent dir={dir} className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{t("agLinkExisting")}</DialogTitle>
+          <DialogDescription>
+            {lang === "ar" ? agent.nameAr : agent.nameEn} <span dir="ltr">({agent.employeeId})</span>
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-1.5">
+          <Label>{t("agAvailableUsers")}</Label>
+          <Select value={userId} onValueChange={setUserId}>
+            <SelectTrigger><SelectValue placeholder={t("select")} /></SelectTrigger>
+            <SelectContent>
+              {isLoading && <SelectItem value="_loading" disabled>{t("loading")}</SelectItem>}
+              {!isLoading && (available ?? []).length === 0 && <SelectItem value="_empty" disabled>{t("noData")}</SelectItem>}
+              {(available ?? []).map((u) => (
+                <SelectItem key={u.id} value={String(u.id)}>
+                  {lang === "ar" ? u.displayNameAr : u.displayNameEn} <span className="text-xs text-muted-foreground ms-1" dir="ltr">({u.username})</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>{t("cancel")}</Button>
+          <Button disabled={!userId || userId.startsWith("_") || busy} onClick={() => onSubmit(Number(userId))}>
+            {t("save")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

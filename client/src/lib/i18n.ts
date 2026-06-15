@@ -142,6 +142,15 @@ export const translations = {
     agLoginPassword: "كلمة مرور للدخول",
     agDeleteTitle: "حذف الوكيل",
     agDeleteDesc: "سيتم تعطيل الوكيل مع الاحتفاظ ببياناته التاريخية. هل أنت متأكد؟",
+    agLogin: "حساب الدخول",
+    agLinked: "مربوط",
+    agNoLogin: "بدون حساب",
+    agCreateLoginAction: "إنشاء حساب دخول",
+    agCreateLoginTitle: "إنشاء حساب دخول للوكيل",
+    agCreateLoginHint: "سيُجبر الوكيل على تغيير كلمة المرور عند أول دخول",
+    agLinkExisting: "ربط بحساب موجود",
+    agAvailableUsers: "حسابات وكلاء غير مربوطة",
+    agLinkedSuccess: "تم ربط حساب الدخول",
 
     // ── APR ──
     aprTitle: "تقرير أداء الوكلاء APR",
@@ -509,6 +518,15 @@ export const translations = {
     agLoginPassword: "Login password",
     agDeleteTitle: "Delete agent",
     agDeleteDesc: "The agent will be deactivated; historical data is preserved. Are you sure?",
+    agLogin: "Login",
+    agLinked: "Linked",
+    agNoLogin: "No login",
+    agCreateLoginAction: "Create login",
+    agCreateLoginTitle: "Create login for agent",
+    agCreateLoginHint: "The agent will be forced to change the password on first login",
+    agLinkExisting: "Link existing account",
+    agAvailableUsers: "Unlinked agent accounts",
+    agLinkedSuccess: "Login linked",
 
     // ── APR ──
     aprTitle: "Agent Performance Report (APR)",
