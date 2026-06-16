@@ -10,6 +10,7 @@ import { requirePermission, requireFeature, grantsOf } from "../permissions";
 import { sendError, errInternal, errNotFound, errInvalidId } from "../http-errors";
 import { getScopedAgents } from "../scoping";
 import { parseFirstSheet } from "../excel";
+import { sendSchedulesTemplate } from "../templates";
 import { autoScheduleBreaks, parseShiftCell, DAY_KEYS, readShifts, writeShifts } from "../schedule-utils";
 import { notifyUser, notifyRole } from "../notify";
 import type { SessionUser } from "../auth";
@@ -272,6 +273,37 @@ export function registerScheduleRoutes(app: Express) {
         res.json({ updated: updatedCount, policy });
       } catch (err) {
         console.error("[schedules.auto-breaks]", err);
+        errInternal(res);
+      }
+    },
+  );
+
+  // ── Excel template download (any role that can manage / view schedules) ────
+  app.get(
+    "/api/schedules/template",
+    requireFeature("menu.schedule"),
+    requirePermission("schedule.import", "schedule.manage"),
+    (_req, res) => sendSchedulesTemplate(res),
+  );
+
+  // ── Peers list for shift-swap (same project as caller, excluding self) ─────
+  app.get(
+    "/api/schedules/peers",
+    requireFeature("menu.schedule"),
+    requirePermission("schedule.swap_request"),
+    async (req, res) => {
+      try {
+        const me = req.user as SessionUser;
+        const [myAgent] = await db.select().from(agents).where(eq(agents.userId, me.id));
+        if (!myAgent) return res.json([]);
+        const peers = await db.select().from(agents).where(and(
+          eq(agents.projectId, myAgent.projectId),
+          eq(agents.isActive, true),
+        ));
+        res.json(peers.filter((p) => p.id !== myAgent.id).map((p) => ({
+          id: p.id, employeeId: p.employeeId, nameAr: p.nameAr, nameEn: p.nameEn,
+        })));
+      } catch {
         errInternal(res);
       }
     },

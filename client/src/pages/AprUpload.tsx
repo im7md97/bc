@@ -16,7 +16,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { useApi } from "@/hooks/use-api";
-import { apiRequest, parseError } from "@/lib/api";
+import { apiRequest, parseError, downloadFile } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useToast } from "@/hooks/use-toast";
 
@@ -131,7 +131,12 @@ export default function AprUploadPage() {
   };
 
   return (
-    <PageShell title={t("aprUploadTitle")}>
+    <PageShell title={t("aprUploadTitle")} actions={
+      <Button variant="outline" size="sm" className="gap-1.5"
+        onClick={() => downloadFile("/api/apr/template", "apr-template.xlsx")}>
+        <Upload className="w-4 h-4 rotate-180" /> {t("aprTemplate")}
+      </Button>
+    }>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="rounded-2xl">
           <CardContent className="pt-6 space-y-4">

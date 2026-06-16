@@ -11,6 +11,7 @@
     "db:push": "drizzle-kit push",
     "db:start": "tsx script/dev-db.ts",
     "db:reset": "tsx script/reset-db.ts",
+    "db:wipe": "tsx script/wipe-except-super-admin.ts",
     "grant-super-admin": "tsx script/grant-super-admin.ts"
   },
   "dependencies": {

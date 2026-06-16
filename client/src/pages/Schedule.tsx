@@ -22,7 +22,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useApi, useApiMutation } from "@/hooks/use-api";
-import { apiRequest, parseError } from "@/lib/api";
+import { apiRequest, parseError, downloadFile } from "@/lib/api";
 import { useAuth, can } from "@/hooks/use-auth";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useToast } from "@/hooks/use-toast";
@@ -252,8 +252,6 @@ export default function SchedulePage() {
             weekStart={weekStart}
             onClose={() => setSwapOpen(null)}
             onSuccess={() => { setSwapOpen(null); refetchSwaps(); }}
-            allAgents={data?.agents ?? []}
-            myAgentId={myAgent.id}
             t={t} lang={lang} dir={dir}
           />
         )}
@@ -275,9 +273,14 @@ export default function SchedulePage() {
             </Button>
           )}
           {canImport && (
-            <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} className="gap-1.5">
-              <Upload className="w-4 h-4" /> {t("schImport")}
-            </Button>
+            <>
+              <Button variant="outline" size="sm" onClick={() => downloadFile("/api/schedules/template", "schedules-template.xlsx")} className="gap-1.5">
+                <Upload className="w-4 h-4 rotate-180" /> {t("schTemplate")}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} className="gap-1.5">
+                <Upload className="w-4 h-4" /> {t("schImport")}
+              </Button>
+            </>
           )}
           {canAutoBreaks && (
             <Button size="sm" onClick={() => autoBreaks.mutate(undefined as any)}
@@ -600,9 +603,11 @@ function SettingsDialog({ open, onClose, projectId, weekStart, initial, onSaved,
 function ImportDialog({ open, onClose, projectId, weekStart, onImported, t, dir, toast }: any) {
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ imported: number; skipped: number; unknown: string[]; errors: any[] } | null>(null);
   const submit = async () => {
     if (!file || !projectId) return;
     setBusy(true);
+    setResult(null);
     try {
       const fd = new FormData();
       fd.append("file", file);
@@ -611,8 +616,9 @@ function ImportDialog({ open, onClose, projectId, weekStart, onImported, t, dir,
       const res = await fetch("/api/schedules/import", { method: "POST", body: fd, credentials: "include" });
       if (!res.ok) throw await parseError(res);
       const body = await res.json();
+      setResult(body);
       toast({ title: `${t("schImported")} ${body.imported} · ${body.skipped} ${t("schImportSkipped")}` });
-      onImported();
+      if (body.imported > 0) onImported();
     } catch (err: any) {
       toast({ title: err.message, variant: "destructive" });
     } finally { setBusy(false); }
@@ -624,9 +630,27 @@ function ImportDialog({ open, onClose, projectId, weekStart, onImported, t, dir,
           <DialogTitle>{t("schImportTitle")}</DialogTitle>
           <DialogDescription>{t("schImportFormat")}</DialogDescription>
         </DialogHeader>
-        <Input type="file" accept=".xlsx" dir="ltr" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+        <Button variant="outline" size="sm" className="self-start gap-1.5"
+          onClick={() => downloadFile("/api/schedules/template", "schedules-template.xlsx")}>
+          <Upload className="w-4 h-4 rotate-180" /> {t("schTemplate")}
+        </Button>
+        <Input type="file" accept=".xlsx" dir="ltr" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setResult(null); }} />
+        {result && (
+          <div className="bg-secondary/30 rounded-lg p-3 text-xs space-y-1">
+            <div className="flex justify-between"><span>{t("schImported")}:</span><span className="font-bold" dir="ltr">{result.imported}</span></div>
+            <div className="flex justify-between"><span>{t("schImportSkipped")}:</span><span className="font-bold text-amber-600" dir="ltr">{result.skipped}</span></div>
+            {result.unknown.length > 0 && (
+              <div className="pt-2 border-t mt-2">
+                <div className="text-amber-700 font-semibold mb-1">{t("aprUnknownRows")} ({result.unknown.length}):</div>
+                <div className="text-[10px] flex flex-wrap gap-1" dir="ltr">
+                  {result.unknown.map((e, i) => <span key={i} className="bg-amber-500/10 px-1.5 py-0.5 rounded">{e}</span>)}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>{t("cancel")}</Button>
+          <Button variant="outline" onClick={onClose}>{result ? t("close") : t("cancel")}</Button>
           <Button onClick={submit} disabled={!file || busy} className="gap-2">
             <Upload className="w-4 h-4" /> {busy ? t("loading") : t("save")}
           </Button>
@@ -636,9 +660,11 @@ function ImportDialog({ open, onClose, projectId, weekStart, onImported, t, dir,
   );
 }
 
-function SwapDialog({ dayKey, weekStart, onClose, onSuccess, allAgents, myAgentId, t, lang, dir }: any) {
+function SwapDialog({ dayKey, weekStart, onClose, onSuccess, t, lang, dir }: any) {
   const [target, setTarget] = useState<string>("");
   const [comment, setComment] = useState("");
+  // Fetch peers from same project — agent's own /api/schedules only includes self.
+  const { data: peers, isLoading: peersLoading } = useApi<{ id: number; employeeId: string; nameAr: string; nameEn: string }[]>("/api/schedules/peers");
   const submit = useApiMutation(
     () => apiRequest("POST", "/api/schedules/swap-requests",
       { targetAgentId: Number(target), weekStart, dayKey, comment }),
@@ -658,7 +684,9 @@ function SwapDialog({ dayKey, weekStart, onClose, onSuccess, allAgents, myAgentI
             <Select value={target} onValueChange={setTarget}>
               <SelectTrigger><SelectValue placeholder={t("select")} /></SelectTrigger>
               <SelectContent>
-                {allAgents.filter((a: AgentSummary) => a.id !== myAgentId).map((a: AgentSummary) => (
+                {peersLoading && <SelectItem value="_loading" disabled>{t("loading")}</SelectItem>}
+                {!peersLoading && (peers ?? []).length === 0 && <SelectItem value="_empty" disabled>{t("noData")}</SelectItem>}
+                {(peers ?? []).map((a) => (
                   <SelectItem key={a.id} value={String(a.id)}>
                     {lang === "ar" ? a.nameAr : a.nameEn} ({a.employeeId})
                   </SelectItem>

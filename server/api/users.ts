@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import multer from "multer";
 import { db } from "../db";
 import { users, agents, ROLES, type SafeUser } from "@shared/schema";
 import { eq, desc, and, ne, or, ilike } from "drizzle-orm";
@@ -6,7 +7,20 @@ import { requirePermission, grantsOf } from "../permissions";
 import { sendError, errInternal, errNotFound, errInvalidId } from "../http-errors";
 import { hashPassword } from "../password";
 import { notifyRole } from "../notify";
+import { parseFirstSheet } from "../excel";
+import { sendUsersTemplate } from "../templates";
 import type { SessionUser } from "../auth";
+
+const xlsxUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ok = file.originalname.toLowerCase().endsWith(".xlsx")
+      || file.mimetype.includes("spreadsheetml");
+    if (ok) cb(null, true);
+    else cb(new Error("xlsx_only"));
+  },
+});
 
 function safe(u: typeof users.$inferSelect): SafeUser {
   const { passwordHash: _, ...rest } = u;
@@ -186,6 +200,77 @@ export function registerUserRoutes(app: Express) {
       await db.update(users).set({ role: "super_admin", updatedAt: new Date() }).where(eq(users.id, id));
       res.json({ message: "ok" });
     } catch {
+      errInternal(res);
+    }
+  });
+
+  // Downloadable users template.
+  app.get("/api/users/template", requirePermission("user.create", "user.create_agent"), (_req, res) => {
+    sendUsersTemplate(res);
+  });
+
+  // Bulk users import via Excel.
+  app.post("/api/users/import", requirePermission("user.create"), xlsxUpload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) return sendError(res, 400, "no_file", "لم يتم رفع أي ملف", "No file uploaded");
+      const me = req.user as SessionUser;
+      const { rows } = parseFirstSheet(req.file.buffer);
+
+      const lookup = (row: any, ...keys: string[]) => {
+        for (const k of keys) {
+          for (const key of Object.keys(row)) {
+            if (key.trim().toLowerCase() === k.toLowerCase()) return row[key];
+          }
+        }
+        return undefined;
+      };
+
+      let created = 0;
+      const errors: { row: number; reason: string }[] = [];
+
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        const username = String(lookup(r, "username", "اسم المستخدم") ?? "").trim();
+        const email = String(lookup(r, "email", "البريد") ?? "").trim();
+        const role = String(lookup(r, "role", "الدور") ?? "").trim();
+        const password = String(lookup(r, "password", "كلمة المرور") ?? "").trim();
+        const displayNameAr = String(lookup(r, "displayNameAr", "name_ar", "الاسم العربي") ?? username).trim();
+        const displayNameEn = String(lookup(r, "displayNameEn", "name_en", "english name") ?? username).trim();
+
+        if (!username || !email || !password) {
+          errors.push({ row: i + 2, reason: "missing username/email/password" });
+          continue;
+        }
+        if (!ROLES.includes(role as any) || role === "super_admin") {
+          errors.push({ row: i + 2, reason: `invalid role: ${role}` });
+          continue;
+        }
+        if (password.length < 6) {
+          errors.push({ row: i + 2, reason: "password < 6 chars" });
+          continue;
+        }
+        try {
+          await db.insert(users).values({
+            username,
+            email,
+            passwordHash: hashPassword(password),
+            role,
+            displayNameAr,
+            displayNameEn,
+            forcePasswordChange: true,
+          });
+          created++;
+        } catch (err: any) {
+          if (err?.code === "23505") errors.push({ row: i + 2, reason: "duplicate username/email" });
+          else errors.push({ row: i + 2, reason: "db error" });
+        }
+      }
+      res.json({ created, errors });
+    } catch (err: any) {
+      if (err?.message === "xlsx_only") {
+        return sendError(res, 400, "invalid_file", "يُسمح فقط بملفات xlsx", "Only .xlsx files are allowed");
+      }
+      console.error("[users.import]", err);
       errInternal(res);
     }
   });

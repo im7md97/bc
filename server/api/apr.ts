@@ -10,6 +10,7 @@ import { requirePermission, requireFeature, grantsOf } from "../permissions";
 import { sendError, errInternal, errNotFound, errInvalidId } from "../http-errors";
 import { getScopedAgents } from "../scoping";
 import { parseFirstSheet, sendXlsx } from "../excel";
+import { sendAprTemplate } from "../templates";
 import { normalizeDuration, normalizePercent, normalizeNumber, formatHms } from "../duration";
 import { notifyUser, notifyRole } from "../notify";
 import type { SessionUser } from "../auth";
@@ -81,6 +82,9 @@ export function formatMetric(def: AprMetricDefinition | undefined, value: unknow
 }
 
 export function registerAprRoutes(app: Express) {
+  // ── Excel template download ──────────────────────────────────────────────────
+  app.get("/api/apr/template", requirePermission("apr.upload"), (_req, res) => sendAprTemplate(res));
+
   // ── Metric definitions / mapping editor (§7.2) ───────────────────────────────
   app.get("/api/apr/metrics", requirePermission("apr.upload", "apr.view_all", "apr.view_project", "apr.view_team", "apr.view_own"), async (req, res) => {
     try {

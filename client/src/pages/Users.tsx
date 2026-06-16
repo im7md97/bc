@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Trash2, KeyRound, Search, ShieldAlert } from "lucide-react";
+import { Plus, Trash2, KeyRound, Search, ShieldAlert, Download, Upload } from "lucide-react";
 import { PageShell } from "@/components/layout/PageShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +20,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useApi, useApiMutation } from "@/hooks/use-api";
-import { apiRequest } from "@/lib/api";
+import { apiRequest, downloadFile, parseError } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 import { useAuth, can } from "@/hooks/use-auth";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ROLE_LABEL_KEYS } from "@/lib/i18n";
@@ -42,9 +43,11 @@ const CREATABLE_ROLES_AGENT_ONLY = ["agent"];
 
 export default function UsersPage() {
   const { t, lang, dir } = useLanguage();
+  const { toast } = useToast();
   const { data: me } = useAuth();
   const [search, setSearch] = useState("");
   const [addOpen, setAddOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [pwUser, setPwUser] = useState<SystemUser | null>(null);
   const [delUser, setDelUser] = useState<SystemUser | null>(null);
   const [promoteUser, setPromoteUser] = useState<SystemUser | null>(null);
@@ -83,11 +86,24 @@ export default function UsersPage() {
       title={t("usersTitle")}
       subtitle={t("usersSubtitle")}
       actions={
-        (isFullCreator || isAgentOnlyCreator) && (
-          <Button onClick={() => setAddOpen(true)} className="gap-2" data-testid="button-add-user">
-            <Plus className="w-4 h-4" /> {t("usersAdd")}
-          </Button>
-        )
+        <>
+          {(isFullCreator || isAgentOnlyCreator) && (
+            <Button variant="outline" size="sm"
+              onClick={() => downloadFile("/api/users/template", "users-template.xlsx")} className="gap-1.5">
+              <Download className="w-4 h-4" /> {t("usersTemplate")}
+            </Button>
+          )}
+          {isFullCreator && (
+            <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} className="gap-1.5">
+              <Upload className="w-4 h-4" /> {t("usersImport")}
+            </Button>
+          )}
+          {(isFullCreator || isAgentOnlyCreator) && (
+            <Button onClick={() => setAddOpen(true)} className="gap-2" data-testid="button-add-user">
+              <Plus className="w-4 h-4" /> {t("usersAdd")}
+            </Button>
+          )}
+        </>
       }
     >
       <div className="flex gap-2 mb-4">
@@ -239,6 +255,40 @@ export default function UsersPage() {
               <Button type="submit" disabled={changePw.isPending}>{t("save")}</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Excel import */}
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent dir={dir} className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("usersImport")}</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">{t("usersImportHint")}</p>
+          <Button variant="outline" size="sm" className="gap-1.5 self-start"
+            onClick={() => downloadFile("/api/users/template", "users-template.xlsx")}>
+            <Download className="w-4 h-4" /> {t("usersTemplate")}
+          </Button>
+          <Input type="file" accept=".xlsx" dir="ltr"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              try {
+                const fd = new FormData();
+                fd.append("file", file);
+                const res = await fetch("/api/users/import", { method: "POST", body: fd, credentials: "include" });
+                if (!res.ok) throw await parseError(res);
+                const body = await res.json();
+                toast({ title: `${t("usersImportDone")} ${body.created}${body.errors?.length ? ` · ${body.errors.length} ${t("error")}` : ""}` });
+                setImportOpen(false);
+                window.location.reload();
+              } catch (err: any) {
+                toast({ title: err.message, variant: "destructive" });
+              }
+            }} />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportOpen(false)}>{t("close")}</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
