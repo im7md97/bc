@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import multer from "multer";
 import { db } from "../db";
-import { users, agents, ROLES, type SafeUser } from "@shared/schema";
+import { users, agents, projects, supervisorsProjects, ROLES, type SafeUser } from "@shared/schema";
 import { eq, desc, and, ne, or, ilike } from "drizzle-orm";
 import { requirePermission, grantsOf } from "../permissions";
 import { sendError, errInternal, errNotFound, errInvalidId } from "../http-errors";
@@ -210,6 +210,15 @@ export function registerUserRoutes(app: Express) {
   });
 
   // Bulk users import via Excel.
+  //
+  // Two-pass: first create every user, then wire up project / report_to
+  // references (which may point at users created earlier in the same upload).
+  //
+  //   role=project_manager + project → set project.manager_user_id
+  //   role=supervisor      + project → insert supervisors_projects row
+  //   role=agent           + project → insert agents row (employee_id=username,
+  //                                    project_id, supervisor_user_id from
+  //                                    report_to lookup, user_id=new user)
   app.post("/api/users/import", requirePermission("user.create"), xlsxUpload.single("file"), async (req, res) => {
     try {
       if (!req.file) return sendError(res, 400, "no_file", "لم يتم رفع أي ملف", "No file uploaded");
@@ -225,8 +234,32 @@ export function registerUserRoutes(app: Express) {
         return undefined;
       };
 
-      let created = 0;
+      // Pre-load existing projects and users for resolution.
+      const allProjects = await db.select().from(projects);
+      const projectByName = new Map<string, number>();
+      for (const p of allProjects) {
+        projectByName.set(p.nameAr.trim().toLowerCase(), p.id);
+        projectByName.set(p.nameEn.trim().toLowerCase(), p.id);
+      }
+      const allUsers = await db.select().from(users);
+      const userByUsername = new Map<string, { id: number; role: string }>(
+        allUsers.map((u) => [u.username.trim().toLowerCase(), { id: u.id, role: u.role }]),
+      );
+
+      // ── Pass 1: create users, parse and remember references ────────────────
+      interface Pending {
+        userId: number;
+        role: string;
+        username: string;
+        displayNameAr: string;
+        displayNameEn: string;
+        projectName: string;
+        reportTo: string;
+        rowNum: number;
+      }
+      const pending: Pending[] = [];
       const errors: { row: number; reason: string }[] = [];
+      let created = 0;
 
       for (let i = 0; i < rows.length; i++) {
         const r = rows[i];
@@ -236,21 +269,24 @@ export function registerUserRoutes(app: Express) {
         const password = String(lookup(r, "password", "كلمة المرور") ?? "").trim();
         const displayNameAr = String(lookup(r, "displayNameAr", "name_ar", "الاسم العربي") ?? username).trim();
         const displayNameEn = String(lookup(r, "displayNameEn", "name_en", "english name") ?? username).trim();
+        const reportTo = String(lookup(r, "report_to", "report to", "reports_to", "المسؤول") ?? "").trim();
+        const projectName = String(lookup(r, "project", "المشروع") ?? "").trim();
+        const rowNum = i + 2;
 
         if (!username || !email || !password) {
-          errors.push({ row: i + 2, reason: "missing username/email/password" });
+          errors.push({ row: rowNum, reason: "missing username/email/password" });
           continue;
         }
         if (!ROLES.includes(role as any) || role === "super_admin") {
-          errors.push({ row: i + 2, reason: `invalid role: ${role}` });
+          errors.push({ row: rowNum, reason: `invalid role: ${role}` });
           continue;
         }
         if (password.length < 6) {
-          errors.push({ row: i + 2, reason: "password < 6 chars" });
+          errors.push({ row: rowNum, reason: "password < 6 chars" });
           continue;
         }
         try {
-          await db.insert(users).values({
+          const [createdUser] = await db.insert(users).values({
             username,
             email,
             passwordHash: hashPassword(password),
@@ -258,14 +294,76 @@ export function registerUserRoutes(app: Express) {
             displayNameAr,
             displayNameEn,
             forcePasswordChange: true,
-          });
+          }).returning();
+          userByUsername.set(username.toLowerCase(), { id: createdUser.id, role });
+          pending.push({ userId: createdUser.id, role, username, displayNameAr, displayNameEn,
+            projectName, reportTo, rowNum });
           created++;
         } catch (err: any) {
-          if (err?.code === "23505") errors.push({ row: i + 2, reason: "duplicate username/email" });
-          else errors.push({ row: i + 2, reason: "db error" });
+          if (err?.code === "23505") errors.push({ row: rowNum, reason: "duplicate username/email" });
+          else errors.push({ row: rowNum, reason: "db error" });
         }
       }
-      res.json({ created, errors });
+
+      // ── Pass 2: wire project / report_to ───────────────────────────────────
+      let supervisorsLinked = 0;
+      let agentsCreated = 0;
+      let pmsAssigned = 0;
+      const wiringWarnings: { row: number; reason: string }[] = [];
+
+      for (const p of pending) {
+        if (!p.projectName && !p.reportTo) continue;
+        const projectId = p.projectName ? projectByName.get(p.projectName.toLowerCase()) ?? null : null;
+        const reportToUser = p.reportTo ? userByUsername.get(p.reportTo.toLowerCase()) ?? null : null;
+
+        if (p.projectName && !projectId) {
+          wiringWarnings.push({ row: p.rowNum, reason: `unknown project: ${p.projectName}` });
+        }
+        if (p.reportTo && !reportToUser) {
+          wiringWarnings.push({ row: p.rowNum, reason: `unknown report_to: ${p.reportTo}` });
+        }
+
+        if (p.role === "project_manager" && projectId) {
+          await db.update(projects).set({ managerUserId: p.userId, updatedAt: new Date() })
+            .where(eq(projects.id, projectId));
+          pmsAssigned++;
+        } else if (p.role === "supervisor" && projectId) {
+          await db.insert(supervisorsProjects).values({ supervisorUserId: p.userId, projectId })
+            .onConflictDoNothing();
+          supervisorsLinked++;
+        } else if (p.role === "agent" && projectId) {
+          const supervisorUserId = reportToUser?.role === "supervisor" ? reportToUser.id : null;
+          try {
+            await db.insert(agents).values({
+              employeeId: p.username,
+              nameAr: p.displayNameAr,
+              nameEn: p.displayNameEn,
+              projectId,
+              supervisorUserId,
+              userId: p.userId,
+              createdByUserId: me.id,
+            });
+            agentsCreated++;
+          } catch (err: any) {
+            if (err?.code === "23505") {
+              wiringWarnings.push({ row: p.rowNum, reason: "duplicate employeeId" });
+            } else {
+              wiringWarnings.push({ row: p.rowNum, reason: "could not create agent row" });
+            }
+          }
+        }
+      }
+
+      res.json({
+        created,
+        errors,
+        wiring: {
+          supervisorsLinked,
+          agentsCreated,
+          pmsAssigned,
+          warnings: wiringWarnings,
+        },
+      });
     } catch (err: any) {
       if (err?.message === "xlsx_only") {
         return sendError(res, 400, "invalid_file", "يُسمح فقط بملفات xlsx", "Only .xlsx files are allowed");

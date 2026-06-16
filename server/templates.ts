@@ -5,15 +5,28 @@ import { sendXlsx } from "./excel";
 export function sendUsersTemplate(res: Response) {
   sendXlsx(res, "users-template.xlsx", [{
     name: "Users",
+    // Columns:
+    //   report_to → username of supervisor/manager (resolved within the same upload or against existing users)
+    //   project   → project name in Arabic or English (resolved case-insensitive)
     rows: [
+      { username: "admin.example", email: "admin@portal.test", role: "admin",
+        password: "ChangeMe_2026!", displayNameAr: "المدير العام", displayNameEn: "Admin",
+        report_to: "", project: "" },
       { username: "wfm.example", email: "wfm@portal.test", role: "wfm",
-        password: "ChangeMe_2026!", displayNameAr: "موظف القوى العاملة", displayNameEn: "WFM User" },
+        password: "ChangeMe_2026!", displayNameAr: "موظف القوى العاملة", displayNameEn: "WFM User",
+        report_to: "", project: "" },
+      { username: "pm.example", email: "pm@portal.test", role: "project_manager",
+        password: "ChangeMe_2026!", displayNameAr: "مدير المشروع", displayNameEn: "Project Manager",
+        report_to: "admin.example", project: "Project X" },
       { username: "supervisor.example", email: "sup@portal.test", role: "supervisor",
-        password: "ChangeMe_2026!", displayNameAr: "المشرف", displayNameEn: "Supervisor" },
+        password: "ChangeMe_2026!", displayNameAr: "المشرف", displayNameEn: "Supervisor",
+        report_to: "pm.example", project: "Project X" },
       { username: "quality.example", email: "qual@portal.test", role: "quality",
-        password: "ChangeMe_2026!", displayNameAr: "موظف الجودة", displayNameEn: "Quality" },
+        password: "ChangeMe_2026!", displayNameAr: "موظف الجودة", displayNameEn: "Quality",
+        report_to: "admin.example", project: "" },
       { username: "agent.example", email: "agent@portal.test", role: "agent",
-        password: "ChangeMe_2026!", displayNameAr: "وكيل", displayNameEn: "Agent" },
+        password: "ChangeMe_2026!", displayNameAr: "وكيل", displayNameEn: "Agent",
+        report_to: "supervisor.example", project: "Project X" },
     ],
   }]);
 }
