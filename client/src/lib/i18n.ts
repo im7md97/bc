@@ -376,6 +376,8 @@ export const translations = {
     qcCsatRate: "دقة الأخطاء الحرجة المتعلقة بالعملاء",
     qcPassRate: "نسبة النجاح",
     qcNoEvaluations: "لا توجد تقييمات بعد",
+    qcFilterPeriod: "الفترة",
+    qcAllMonths: "كل الفترات",
 
     // ── Months ──
     month1: "يناير", month2: "فبراير", month3: "مارس", month4: "أبريل",
@@ -756,6 +758,8 @@ export const translations = {
     qcCsatRate: "Customer Critical Error Accuracy",
     qcPassRate: "Pass rate",
     qcNoEvaluations: "No evaluations yet",
+    qcFilterPeriod: "Period",
+    qcAllMonths: "All periods",
 
     // ── Months ──
     month1: "January", month2: "February", month3: "March", month4: "April",

@@ -33,7 +33,9 @@ const audioUpload = multer({
  *   qc.approve_team  → entries whose agent.supervisor_user_id is the caller
  *   qc.evaluate      → entries the caller created
  *   qc.view_own      → APPROVED entries whose agent.user_id is the caller
- *  Multiple grants stack (union). Approval flow targets each one. */
+ *  Multiple grants stack (union). Approval flow targets each one.
+ *
+ *  Optional ?year=YYYY&month=1..12 filters by call_date prefix. */
 async function scopedEntries(req: any) {
   const me = req.user as SessionUser;
   const grants = grantsOf(req);
@@ -60,6 +62,16 @@ async function scopedEntries(req: any) {
     if (grants.has("qc.evaluate"))     all.filter((r) => r.entry.createdByUserId === me.id).forEach(add);
     if (grants.has("qc.view_own"))     all.filter((r) => r.agentUserId === me.id && r.entry.status === "approved").forEach(add);
   }
+  // Optional month/year filter on call_date.
+  const year = req.query?.year ? Number(req.query.year) : null;
+  const month = req.query?.month ? Number(req.query.month) : null;
+  if (year && !isNaN(year) && month && !isNaN(month) && month >= 1 && month <= 12) {
+    const prefix = `${year}-${String(month).padStart(2, "0")}`;
+    visible = visible.filter((r) => String(r.entry.callDate ?? "").startsWith(prefix));
+  } else if (year && !isNaN(year)) {
+    visible = visible.filter((r) => String(r.entry.callDate ?? "").startsWith(String(year)));
+  }
+
   return visible.map((r) => ({
     ...r.entry,
     agentNameAr: r.agentNameAr,

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link } from "wouter";
 import {
   Plus, Search, ThumbsUp, ThumbsDown, Music, Trash2, Eye, MessageSquare, SendHorizonal,
@@ -24,10 +24,15 @@ import {
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
 } from "recharts";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { useApi, useApiMutation } from "@/hooks/use-api";
 import { apiRequest } from "@/lib/api";
 import { useAuth, can } from "@/hooks/use-auth";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { MONTH_KEYS } from "@/lib/i18n";
 
 interface QcEntry {
   id: number;
@@ -154,8 +159,19 @@ export default function QcDashboardPage() {
   const [reviewComment, setReviewComment] = useState("");
   const [resubmitNote, setResubmitNote] = useState("");
 
-  const { data: entries, isLoading } = useApi<QcEntry[]>("/api/qc/entries");
-  const { data: stats } = useApi<QcStats>("/api/qc/stats");
+  const now = new Date();
+  const [filterYear, setFilterYear] = useState<string>(String(now.getFullYear()));
+  const [filterMonth, setFilterMonth] = useState<string>(String(now.getMonth() + 1));
+
+  const filterQs = useMemo(() => {
+    if (filterMonth === "_all") return "";
+    return `?year=${filterYear}&month=${filterMonth}`;
+  }, [filterYear, filterMonth]);
+
+  const { data: entries, isLoading } = useApi<QcEntry[]>(`/api/qc/entries${filterQs}`,
+    { queryKey: ["/api/qc/entries", filterYear, filterMonth] });
+  const { data: stats } = useApi<QcStats>(`/api/qc/stats${filterQs}`,
+    { queryKey: ["/api/qc/stats", filterYear, filterMonth] });
 
   const filtered = useMemo(() => {
     if (!entries) return [];
@@ -205,6 +221,33 @@ export default function QcDashboardPage() {
         </Link>
       )}
     >
+      {/* Period filter */}
+      <div className="flex flex-wrap items-end gap-2 mb-4">
+        <div className="space-y-1.5 min-w-[120px]">
+          <Label className="text-xs">{t("scYear")}</Label>
+          <Select value={filterYear} onValueChange={setFilterYear} disabled={filterMonth === "_all"}>
+            <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: 5 }, (_, i) => now.getFullYear() - i).map((y) => (
+                <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5 min-w-[160px]">
+          <Label className="text-xs">{t("qcFilterPeriod")}</Label>
+          <Select value={filterMonth} onValueChange={setFilterMonth}>
+            <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="_all">{t("qcAllMonths")}</SelectItem>
+              {MONTH_KEYS.map((k, i) => (
+                <SelectItem key={i} value={String(i + 1)}>{t(k)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <KpiCard label={t("qcTotal")}    value={stats?.total ?? 0}    icon={FileText}     accent="bg-indigo-500/10 text-indigo-600" />
