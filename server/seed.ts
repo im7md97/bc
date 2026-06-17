@@ -16,6 +16,9 @@ export const DEFAULT_ADMIN_USERNAME = "admin";
 export async function seedCore(): Promise<{ adminPassword?: string }> {
   const result: { adminPassword?: string } = {};
 
+  // Incremental column migration: dashboard_widgets was added later.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS dashboard_widgets jsonb;`).catch(() => {});
+
   // 0. Lightweight migration for incremental tables (added after the initial
   //    db:reset). Drizzle-kit push is the canonical path; this CREATE-IF-NOT-EXISTS
   //    is just a safety net so an existing dev database picks up the new table.

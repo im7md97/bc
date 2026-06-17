@@ -31,6 +31,8 @@ export const users = pgTable("users", {
   preferredLanguage: varchar("preferred_language", { length: 5 }).notNull().default("ar"),
   isActive: boolean("is_active").notNull().default(true),
   forcePasswordChange: boolean("force_password_change").notNull().default(false),
+  // Customisable home dashboard: array of widget keys the user has pinned.
+  dashboardWidgets: jsonb("dashboard_widgets").$type<string[] | null>(),
   lastLoginAt: timestamp("last_login_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

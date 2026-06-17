@@ -1,72 +1,166 @@
-import { Link } from "wouter";
-import {
-  ClipboardCheck, BarChart3, Star, Users, FolderOpen, Headset, Upload, ShieldCheck, Settings2, CalendarClock,
-} from "lucide-react";
+import { useState, useEffect } from "react";
+import { Plus, X, Pencil, ChevronUp, ChevronDown, Check } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { useAuth, can, featureOn } from "@/hooks/use-auth";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { useApi, useApiMutation } from "@/hooks/use-api";
+import { apiRequest } from "@/lib/api";
+import { useAuth } from "@/hooks/use-auth";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { ROLE_LABEL_KEYS, type TranslationKey } from "@/lib/i18n";
+import { ROLE_LABEL_KEYS } from "@/lib/i18n";
+import { WIDGET_RENDERERS } from "@/components/dashboard/widgets";
 
-interface Tile {
-  path: string;
-  labelKey: TranslationKey;
-  icon: React.ComponentType<{ className?: string }>;
-  need: string[];
-  feature?: string;
-  color: string;
+interface DashboardConfig {
+  pinned: string[];
+  catalog: { key: string; titleAr: string; titleEn: string; descriptionAr: string; descriptionEn: string; size: string }[];
 }
-
-const TILES: Tile[] = [
-  { path: "/qc/dashboard", labelKey: "navQc", icon: ClipboardCheck, need: ["qc.evaluate", "qc.approve", "qc.approve_team", "qc.view_own"], feature: "menu.qc", color: "bg-indigo-500/10 text-indigo-600" },
-  { path: "/apr", labelKey: "navApr", icon: BarChart3, need: ["apr.view_all", "apr.view_project", "apr.view_team", "apr.view_own"], feature: "menu.apr", color: "bg-blue-500/10 text-blue-600" },
-  { path: "/apr/upload", labelKey: "navAprUpload", icon: Upload, need: ["apr.upload"], feature: "menu.apr", color: "bg-cyan-500/10 text-cyan-600" },
-  { path: "/scorecards", labelKey: "navScorecards", icon: Star, need: ["scorecard.view_all", "scorecard.view_project", "scorecard.view_team", "scorecard.view_own"], feature: "menu.scorecards", color: "bg-amber-500/10 text-amber-600" },
-  { path: "/scorecards/grid", labelKey: "navGridConfig", icon: Settings2, need: ["scorecard.grid_edit"], feature: "menu.scorecards", color: "bg-orange-500/10 text-orange-600" },
-  { path: "/agents", labelKey: "navAgents", icon: Headset, need: ["agent.list_all", "agent.list_project", "agent.list_team"], color: "bg-emerald-500/10 text-emerald-600" },
-  { path: "/schedule", labelKey: "navSchedule", icon: CalendarClock, need: ["schedule.manage", "schedule.view_team", "schedule.view_project", "schedule.view_own"], feature: "menu.schedule", color: "bg-sky-500/10 text-sky-600" },
-  { path: "/projects", labelKey: "navProjects", icon: FolderOpen, need: ["project.create", "project.edit", "project.edit_own"], feature: "menu.projects", color: "bg-violet-500/10 text-violet-600" },
-  { path: "/users", labelKey: "navUsers", icon: Users, need: ["user.list_all"], feature: "menu.users", color: "bg-rose-500/10 text-rose-600" },
-  { path: "/super-admin", labelKey: "navSuperAdmin", icon: ShieldCheck, need: ["permission.grant", "feature_flag.toggle"], color: "bg-red-500/10 text-red-600" },
-];
 
 export default function HomePage() {
   const { data: user } = useAuth();
   const { t, lang, dir } = useLanguage();
+  const { data, refetch } = useApi<DashboardConfig>("/api/me/dashboard");
 
-  const tiles = TILES.filter((tile) =>
-    can(user, ...tile.need) && (!tile.feature || featureOn(user, tile.feature)));
+  const [editing, setEditing] = useState(false);
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [pinned, setPinned] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (data?.pinned) setPinned(data.pinned);
+  }, [data?.pinned]);
+
+  const save = useApiMutation(
+    (widgets: string[]) => apiRequest<{ pinned: string[] }>("PUT", "/api/me/dashboard", { widgets }),
+    { onSuccess: () => refetch() },
+  );
+
+  const persist = (next: string[]) => {
+    setPinned(next);
+    save.mutate(next);
+  };
+  const addWidget = (key: string) => persist([...pinned, key]);
+  const removeWidget = (key: string) => persist(pinned.filter((k) => k !== key));
+  const moveUp = (i: number) => {
+    if (i <= 0) return;
+    const next = [...pinned];
+    [next[i - 1], next[i]] = [next[i], next[i - 1]];
+    persist(next);
+  };
+  const moveDown = (i: number) => {
+    if (i >= pinned.length - 1) return;
+    const next = [...pinned];
+    [next[i + 1], next[i]] = [next[i], next[i + 1]];
+    persist(next);
+  };
+
   const displayName = lang === "ar" ? user?.displayNameAr : user?.displayNameEn;
   const roleKey = user ? ROLE_LABEL_KEYS[user.role] : undefined;
+
+  const available = (data?.catalog ?? []).filter((w) => !pinned.includes(w.key));
 
   return (
     <div className="min-h-screen bg-background" dir={dir}>
       <Navbar />
       <main className="max-w-[1400px] mx-auto px-4 py-8">
-        <h1 className="text-3xl font-extrabold mb-1">
-          {t("homeWelcome")}, {displayName} 👋
-        </h1>
-        <p className="text-muted-foreground mb-8">
-          {roleKey ? t(roleKey) : ""} — {t("homeHint")}
-        </p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {tiles.map((tile) => {
-            const Icon = tile.icon;
+        <div className="flex items-baseline justify-between flex-wrap gap-3 mb-8">
+          <div>
+            <h1 className="text-3xl font-extrabold mb-1">
+              {t("homeWelcome")}, {displayName} 👋
+            </h1>
+            <p className="text-muted-foreground">{roleKey ? t(roleKey) : ""}</p>
+          </div>
+          <div className="flex gap-2">
+            {editing && (
+              <Button onClick={() => setCatalogOpen(true)} className="gap-2">
+                <Plus className="w-4 h-4" /> {t("homeAddWidget")}
+              </Button>
+            )}
+            <Button
+              variant={editing ? "default" : "outline"}
+              onClick={() => setEditing((e) => !e)}
+              className="gap-2"
+              data-testid="button-customize-dashboard"
+            >
+              {editing ? <><Check className="w-4 h-4" /> {t("homeDone")}</> : <><Pencil className="w-4 h-4" /> {t("homeCustomize")}</>}
+            </Button>
+          </div>
+        </div>
+
+        {pinned.length === 0 && (
+          <Card className="rounded-2xl">
+            <CardContent className="py-16 text-center">
+              <p className="text-muted-foreground mb-4">{t("homeEmptyState")}</p>
+              <Button onClick={() => { setEditing(true); setCatalogOpen(true); }} className="gap-2">
+                <Plus className="w-4 h-4" /> {t("homeAddWidget")}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 auto-rows-min">
+          {pinned.map((key, i) => {
+            const renderer = WIDGET_RENDERERS[key];
+            if (!renderer) return null;
+            const Widget = renderer.component;
             return (
-              <Link key={tile.path} href={tile.path}>
-                <Card className="rounded-2xl hover:shadow-lg hover:-translate-y-0.5 transition-all cursor-pointer h-full">
-                  <CardContent className="pt-6 pb-5 flex flex-col items-center gap-3 text-center">
-                    <span className={`w-14 h-14 rounded-2xl flex items-center justify-center ${tile.color}`}>
-                      <Icon className="w-7 h-7" />
-                    </span>
-                    <span className="font-bold">{t(tile.labelKey)}</span>
-                  </CardContent>
-                </Card>
-              </Link>
+              <div key={key} className={`relative ${renderer.col}`}>
+                {editing && (
+                  <div className="absolute -top-2 -end-2 z-10 flex gap-1 bg-card border border-border rounded-full p-1 shadow-lg">
+                    <Button size="icon" variant="ghost" className="w-7 h-7" onClick={() => moveUp(i)} disabled={i === 0}>
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="w-7 h-7" onClick={() => moveDown(i)} disabled={i === pinned.length - 1}>
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="w-7 h-7 text-red-600 hover:text-red-700" onClick={() => removeWidget(key)}>
+                      <X className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                )}
+                <Widget />
+              </div>
             );
           })}
         </div>
       </main>
+
+      <Dialog open={catalogOpen} onOpenChange={setCatalogOpen}>
+        <DialogContent dir={dir} className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t("homeCatalog")}</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {available.length === 0 && (
+              <p className="col-span-full text-center text-muted-foreground py-8">{t("noData")}</p>
+            )}
+            {available.map((w) => (
+              <Card key={w.key} className="rounded-2xl hover:shadow-md cursor-pointer"
+                onClick={() => { addWidget(w.key); setCatalogOpen(false); }}>
+                <CardContent className="pt-4 pb-4">
+                  <div className="font-bold mb-1">{lang === "ar" ? w.titleAr : w.titleEn}</div>
+                  <div className="text-xs text-muted-foreground">{lang === "ar" ? w.descriptionAr : w.descriptionEn}</div>
+                </CardContent>
+              </Card>
+            ))}
+            {data?.catalog
+              .filter((w) => pinned.includes(w.key))
+              .map((w) => (
+                <Card key={w.key} className="rounded-2xl opacity-50">
+                  <CardContent className="pt-4 pb-4">
+                    <div className="flex items-baseline justify-between mb-1">
+                      <div className="font-bold">{lang === "ar" ? w.titleAr : w.titleEn}</div>
+                      <Badge variant="secondary" className="text-[10px]">{t("homeWidgetExists")}</Badge>
+                    </div>
+                    <div className="text-xs text-muted-foreground">{lang === "ar" ? w.descriptionAr : w.descriptionEn}</div>
+                  </CardContent>
+                </Card>
+              ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

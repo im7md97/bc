@@ -12,6 +12,7 @@ import { registerNotificationRoutes } from "./api/notifications";
 import { registerSuperAdminRoutes } from "./api/super-admin";
 import { registerQcRoutes } from "./api/qc";
 import { registerScheduleRoutes } from "./api/schedules";
+import { registerDashboardRoutes } from "./api/dashboard";
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   setupAuth(app);
@@ -28,6 +29,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   registerSuperAdminRoutes(app);
   registerQcRoutes(app);
   registerScheduleRoutes(app);
+  registerDashboardRoutes(app);
 
   await seedCore();
   return httpServer;

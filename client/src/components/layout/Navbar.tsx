@@ -126,18 +126,16 @@ export function Navbar() {
                     <ChevronDown className="w-4 h-4 opacity-70" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="center" className="min-w-[260px] p-2 rounded-2xl">
+                <DropdownMenuContent align="center" className="min-w-[240px] p-2 rounded-2xl">
                   {items.map((item) => {
-                    const Icon = item.icon;
                     const active = location === item.path;
                     return (
                       <DropdownMenuItem
                         key={item.path}
                         onClick={() => setLocation(item.path)}
-                        className={`gap-3 py-3 px-3 cursor-pointer rounded-xl text-[15px] ${active ? "bg-primary/10 text-primary font-bold" : "font-medium"}`}
+                        className={`py-3 px-4 cursor-pointer rounded-xl text-[15px] ${active ? "bg-primary/10 text-primary font-bold" : "font-medium"}`}
                       >
-                        <Icon className="w-5 h-5 shrink-0" />
-                        <span>{t(item.labelKey)}</span>
+                        {t(item.labelKey)}
                       </DropdownMenuItem>
                     );
                   })}
@@ -165,15 +163,11 @@ export function Navbar() {
                 <div key={group.labelKey}>
                   {gi > 0 && <DropdownMenuSeparator />}
                   <div className="px-2 py-1.5 text-[10px] font-bold uppercase text-muted-foreground">{t(group.labelKey)}</div>
-                  {items.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <DropdownMenuItem key={item.path} onClick={() => setLocation(item.path)} className="gap-2 rounded-lg">
-                        <Icon className="w-4 h-4" />
-                        {t(item.labelKey)}
-                      </DropdownMenuItem>
-                    );
-                  })}
+                  {items.map((item) => (
+                    <DropdownMenuItem key={item.path} onClick={() => setLocation(item.path)} className="rounded-lg px-3 py-2.5 text-sm font-medium">
+                      {t(item.labelKey)}
+                    </DropdownMenuItem>
+                  ))}
                 </div>
               ))}
             </DropdownMenuContent>
