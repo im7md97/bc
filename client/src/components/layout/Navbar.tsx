@@ -103,15 +103,15 @@ export function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-card/95 backdrop-blur border-b border-border/60">
-      <div className="max-w-[1400px] mx-auto px-4 h-16 flex items-center gap-2">
-        <Link href="/" className="font-extrabold text-primary text-lg whitespace-nowrap me-2 flex items-center gap-2">
-          <LayoutDashboard className="w-5 h-5" />
+    <header className="sticky top-0 z-40 bg-card/95 backdrop-blur border-b border-border/60 shadow-sm">
+      <div className="max-w-[1400px] mx-auto px-6 h-20 flex items-center gap-3">
+        <Link href="/" className="font-extrabold text-primary text-xl whitespace-nowrap me-4 flex items-center gap-2.5">
+          <LayoutDashboard className="w-6 h-6" />
           <span className="hidden sm:inline">{t("appName")}</span>
         </Link>
 
         {/* Desktop: 4 grouped dropdowns */}
-        <nav className="hidden lg:flex items-center gap-1 flex-1 justify-center">
+        <nav className="hidden lg:flex items-center gap-2 flex-1 justify-center">
           {visibleGroups.map(({ group, items }) => {
             const isActive = items.some((i) => i.path === location);
             return (
@@ -119,25 +119,24 @@ export function Navbar() {
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    size="sm"
-                    className={`gap-1 px-4 h-10 font-semibold ${isActive ? "bg-primary/10 text-primary" : ""}`}
+                    className={`gap-1.5 px-5 h-12 text-base font-bold rounded-xl ${isActive ? "bg-primary/10 text-primary" : "hover:bg-secondary/60"}`}
                     data-testid={`nav-group-${group.labelKey}`}
                   >
                     {t(group.labelKey)}
-                    <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+                    <ChevronDown className="w-4 h-4 opacity-70" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="center" className="min-w-[220px] p-1.5">
-                  {items.map((item, idx) => {
+                <DropdownMenuContent align="center" className="min-w-[260px] p-2 rounded-2xl">
+                  {items.map((item) => {
                     const Icon = item.icon;
                     const active = location === item.path;
                     return (
                       <DropdownMenuItem
                         key={item.path}
                         onClick={() => setLocation(item.path)}
-                        className={`gap-2.5 py-2.5 cursor-pointer rounded-lg ${active ? "bg-primary/10 text-primary font-semibold" : ""}`}
+                        className={`gap-3 py-3 px-3 cursor-pointer rounded-xl text-[15px] ${active ? "bg-primary/10 text-primary font-bold" : "font-medium"}`}
                       >
-                        <Icon className="w-4 h-4 shrink-0" />
+                        <Icon className="w-5 h-5 shrink-0" />
                         <span>{t(item.labelKey)}</span>
                       </DropdownMenuItem>
                     );
@@ -150,8 +149,8 @@ export function Navbar() {
 
         <div className="flex-1 lg:hidden" />
 
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" onClick={handleToggleLang} title={lang === "ar" ? "English" : "العربية"}>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={handleToggleLang} className="w-10 h-10" title={lang === "ar" ? "English" : "العربية"}>
             <Languages className="w-5 h-5" />
           </Button>
           <NotificationBell />
@@ -183,23 +182,23 @@ export function Navbar() {
           {/* User menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="gap-2 ps-2 pe-3">
-                <span className="w-8 h-8 rounded-full bg-primary/15 text-primary font-bold flex items-center justify-center text-sm">
+              <Button variant="ghost" className="gap-2.5 ps-2 pe-3 h-12 rounded-xl">
+                <span className="w-9 h-9 rounded-full bg-primary/15 text-primary font-bold flex items-center justify-center text-base">
                   {(displayName || "?").charAt(0)}
                 </span>
-                <span className="hidden sm:flex flex-col items-start leading-tight">
-                  <span className="text-sm font-semibold">{displayName}</span>
-                  <span className="text-[10px] text-muted-foreground">{roleKey ? t(roleKey) : ""}</span>
+                <span className="hidden sm:flex flex-col items-start leading-tight text-start">
+                  <span className="text-sm font-bold">{displayName}</span>
+                  <span className="text-xs text-muted-foreground">{roleKey ? t(roleKey) : ""}</span>
                 </span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuItem onClick={() => setLocation("/change-password")} className="gap-2">
+            <DropdownMenuContent align="end" className="w-56 rounded-2xl p-2">
+              <DropdownMenuItem onClick={() => setLocation("/change-password")} className="gap-3 py-2.5 px-3 rounded-xl text-sm font-medium">
                 <KeyRound className="w-4 h-4" />
                 {t("navChangePassword")}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => logout.mutate()} className="gap-2 text-red-600 focus:text-red-600">
+              <DropdownMenuItem onClick={() => logout.mutate()} className="gap-3 py-2.5 px-3 rounded-xl text-sm font-medium text-red-600 focus:text-red-600">
                 <LogOut className="w-4 h-4" />
                 {t("navLogout")}
               </DropdownMenuItem>
