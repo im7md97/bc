@@ -2,6 +2,7 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Users, FolderOpen, Headset, BarChart3, Upload, Star,
   Settings2, ShieldCheck, ClipboardCheck, FilePlus2, LogOut, Languages, KeyRound, Menu, CalendarClock,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,26 +22,65 @@ interface NavItem {
   feature?: string;
 }
 
-// Order matters: most-used items first per role; visibility is permission-driven (§10).
-const NAV_ITEMS: NavItem[] = [
-  { path: "/", labelKey: "navDashboard", icon: LayoutDashboard, need: [] },
-  { path: "/qc/dashboard", labelKey: "navQc", icon: ClipboardCheck, need: ["qc.evaluate", "qc.approve", "qc.approve_team", "qc.view_own"], feature: "menu.qc" },
-  { path: "/qc/new-entry", labelKey: "navQcNew", icon: FilePlus2, need: ["qc.evaluate"], feature: "menu.qc" },
-  { path: "/apr", labelKey: "navApr", icon: BarChart3, need: ["apr.view_all", "apr.view_project", "apr.view_team", "apr.view_own"], feature: "menu.apr" },
-  { path: "/apr/upload", labelKey: "navAprUpload", icon: Upload, need: ["apr.upload"], feature: "menu.apr" },
-  { path: "/scorecards", labelKey: "navScorecards", icon: Star, need: ["scorecard.view_all", "scorecard.view_project", "scorecard.view_team", "scorecard.view_own"], feature: "menu.scorecards" },
-  { path: "/scorecards/grid", labelKey: "navGridConfig", icon: Settings2, need: ["scorecard.grid_edit"], feature: "menu.scorecards" },
-  { path: "/agents", labelKey: "navAgents", icon: Headset, need: ["agent.list_all", "agent.list_project", "agent.list_team"] },
-  { path: "/schedule", labelKey: "navSchedule", icon: CalendarClock, need: ["schedule.manage", "schedule.view_team", "schedule.view_project", "schedule.view_own"], feature: "menu.schedule" },
-  { path: "/projects", labelKey: "navProjects", icon: FolderOpen, need: ["project.create", "project.edit", "project.edit_own"], feature: "menu.projects" },
-  { path: "/users", labelKey: "navUsers", icon: Users, need: ["user.list_all"], feature: "menu.users" },
-  { path: "/super-admin", labelKey: "navSuperAdmin", icon: ShieldCheck, need: ["permission.grant", "feature_flag.toggle"] },
+interface NavGroup {
+  labelKey: TranslationKey;
+  items: NavItem[];
+}
+
+// Four groups matching the user's information architecture.
+// Visibility per item is still permission/feature-flag driven.
+const NAV_GROUPS: NavGroup[] = [
+  {
+    labelKey: "navGroupQuality",
+    items: [
+      { path: "/qc/dashboard", labelKey: "navQc", icon: ClipboardCheck,
+        need: ["qc.evaluate", "qc.approve", "qc.approve_team", "qc.view_own"], feature: "menu.qc" },
+      { path: "/qc/new-entry", labelKey: "navQcNew", icon: FilePlus2,
+        need: ["qc.evaluate"], feature: "menu.qc" },
+    ],
+  },
+  {
+    labelKey: "navGroupPerformance",
+    items: [
+      { path: "/apr", labelKey: "navApr", icon: BarChart3,
+        need: ["apr.view_all", "apr.view_project", "apr.view_team", "apr.view_own"], feature: "menu.apr" },
+      { path: "/scorecards", labelKey: "navScorecards", icon: Star,
+        need: ["scorecard.view_all", "scorecard.view_project", "scorecard.view_team", "scorecard.view_own"], feature: "menu.scorecards" },
+      { path: "/apr/upload", labelKey: "navAprUpload", icon: Upload,
+        need: ["apr.upload"], feature: "menu.apr" },
+      { path: "/scorecards/grid", labelKey: "navGridConfig", icon: Settings2,
+        need: ["scorecard.grid_edit"], feature: "menu.scorecards" },
+    ],
+  },
+  {
+    labelKey: "navGroupSchedule",
+    items: [
+      { path: "/schedule", labelKey: "navSchedule", icon: CalendarClock,
+        need: ["schedule.manage", "schedule.view_team", "schedule.view_project", "schedule.view_own"], feature: "menu.schedule" },
+    ],
+  },
+  {
+    labelKey: "navGroupUser",
+    items: [
+      { path: "/agents", labelKey: "navAgents", icon: Headset,
+        need: ["agent.list_all", "agent.list_project", "agent.list_team"] },
+      { path: "/users", labelKey: "navUsers", icon: Users,
+        need: ["user.list_all"], feature: "menu.users" },
+      { path: "/projects", labelKey: "navProjects", icon: FolderOpen,
+        need: ["project.create", "project.edit", "project.edit_own"], feature: "menu.projects" },
+      { path: "/super-admin", labelKey: "navSuperAdmin", icon: ShieldCheck,
+        need: ["permission.grant", "feature_flag.toggle"] },
+    ],
+  },
 ];
 
-function visibleItems(user: AuthUser | null | undefined): NavItem[] {
-  return NAV_ITEMS.filter((item) =>
-    (item.need.length === 0 || can(user, ...item.need)) &&
-    (!item.feature || featureOn(user, item.feature)));
+function itemVisible(user: AuthUser | null | undefined, item: NavItem): boolean {
+  return (item.need.length === 0 || can(user, ...item.need))
+    && (!item.feature || featureOn(user, item.feature));
+}
+
+function visibleItemsOf(user: AuthUser | null | undefined, group: NavGroup): NavItem[] {
+  return group.items.filter((item) => itemVisible(user, item));
 }
 
 export function Navbar() {
@@ -50,35 +90,60 @@ export function Navbar() {
   const setServerLang = useSetLanguage();
   const [location, setLocation] = useLocation();
 
-  const items = visibleItems(user);
+  const visibleGroups = NAV_GROUPS
+    .map((g) => ({ group: g, items: visibleItemsOf(user, g) }))
+    .filter((g) => g.items.length > 0);
+
   const displayName = lang === "ar" ? user?.displayNameAr : user?.displayNameEn;
   const roleKey = user ? ROLE_LABEL_KEYS[user.role] : undefined;
 
   const handleToggleLang = () => {
     toggleLang();
-    // Persist the choice on the user record (§12).
     setServerLang.mutate(lang === "ar" ? "en" : "ar");
   };
 
   return (
     <header className="sticky top-0 z-40 bg-card/95 backdrop-blur border-b border-border/60">
-      <div className="max-w-[1400px] mx-auto px-4 h-14 flex items-center gap-2">
-        <Link href="/" className="font-extrabold text-primary text-lg whitespace-nowrap me-2">
-          {t("appName")}
+      <div className="max-w-[1400px] mx-auto px-4 h-16 flex items-center gap-2">
+        <Link href="/" className="font-extrabold text-primary text-lg whitespace-nowrap me-2 flex items-center gap-2">
+          <LayoutDashboard className="w-5 h-5" />
+          <span className="hidden sm:inline">{t("appName")}</span>
         </Link>
 
-        {/* Desktop nav */}
-        <nav className="hidden lg:flex items-center gap-1 flex-1 overflow-x-auto">
-          {items.map((item) => {
-            const Icon = item.icon;
-            const active = location === item.path;
+        {/* Desktop: 4 grouped dropdowns */}
+        <nav className="hidden lg:flex items-center gap-1 flex-1 justify-center">
+          {visibleGroups.map(({ group, items }) => {
+            const isActive = items.some((i) => i.path === location);
             return (
-              <Link key={item.path} href={item.path}>
-                <Button variant={active ? "secondary" : "ghost"} size="sm" className="gap-1.5 whitespace-nowrap">
-                  <Icon className="w-4 h-4" />
-                  {t(item.labelKey)}
-                </Button>
-              </Link>
+              <DropdownMenu key={group.labelKey}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={`gap-1 px-4 h-10 font-semibold ${isActive ? "bg-primary/10 text-primary" : ""}`}
+                    data-testid={`nav-group-${group.labelKey}`}
+                  >
+                    {t(group.labelKey)}
+                    <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="center" className="min-w-[220px] p-1.5">
+                  {items.map((item, idx) => {
+                    const Icon = item.icon;
+                    const active = location === item.path;
+                    return (
+                      <DropdownMenuItem
+                        key={item.path}
+                        onClick={() => setLocation(item.path)}
+                        className={`gap-2.5 py-2.5 cursor-pointer rounded-lg ${active ? "bg-primary/10 text-primary font-semibold" : ""}`}
+                      >
+                        <Icon className="w-4 h-4 shrink-0" />
+                        <span>{t(item.labelKey)}</span>
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
             );
           })}
         </nav>
@@ -91,21 +156,27 @@ export function Navbar() {
           </Button>
           <NotificationBell />
 
-          {/* Mobile menu */}
+          {/* Mobile menu — flat list of all visible items */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild className="lg:hidden">
               <Button variant="ghost" size="icon"><Menu className="w-5 h-5" /></Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 lg:hidden">
-              {items.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <DropdownMenuItem key={item.path} onClick={() => setLocation(item.path)} className="gap-2">
-                    <Icon className="w-4 h-4" />
-                    {t(item.labelKey)}
-                  </DropdownMenuItem>
-                );
-              })}
+            <DropdownMenuContent align="end" className="w-64 lg:hidden p-1.5">
+              {visibleGroups.map(({ group, items }, gi) => (
+                <div key={group.labelKey}>
+                  {gi > 0 && <DropdownMenuSeparator />}
+                  <div className="px-2 py-1.5 text-[10px] font-bold uppercase text-muted-foreground">{t(group.labelKey)}</div>
+                  {items.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <DropdownMenuItem key={item.path} onClick={() => setLocation(item.path)} className="gap-2 rounded-lg">
+                        <Icon className="w-4 h-4" />
+                        {t(item.labelKey)}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </div>
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
 
