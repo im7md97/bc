@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import HomePage from "./pages/Home";
 import LoginPage from "./pages/Login";
 import ChangePasswordPage from "./pages/ChangePassword";
+import ProfilePage from "./pages/Profile";
 import UsersPage from "./pages/Users";
 import ProjectsPage from "./pages/Projects";
 import AgentsPage from "./pages/Agents";
@@ -99,6 +100,7 @@ function Router() {
     <Switch>
       <Route path="/login" component={LoginPage} />
       <Route path="/change-password" component={() => <Guard component={ChangePasswordPage} />} />
+      <Route path="/profile" component={() => <Guard component={ProfilePage} />} />
       <Route path="/" component={() => <Guard component={HomePage} />} />
 
       <Route path="/users" component={() => <Guard component={UsersPage} need={["user.list_all"]} feature="menu.users" />} />

@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Users, FolderOpen, Headset, BarChart3, Upload, Star,
   Settings2, ShieldCheck, ClipboardCheck, FilePlus2, LogOut, Languages, KeyRound, Menu, CalendarClock,
-  ChevronDown,
+  ChevronDown, User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -187,6 +187,10 @@ export function Navbar() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56 rounded-2xl p-2">
+              <DropdownMenuItem onClick={() => setLocation("/profile")} className="gap-3 py-2.5 px-3 rounded-xl text-sm font-medium">
+                <User className="w-4 h-4" />
+                {t("navProfile")}
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setLocation("/change-password")} className="gap-3 py-2.5 px-3 rounded-xl text-sm font-medium">
                 <KeyRound className="w-4 h-4" />
                 {t("navChangePassword")}
