@@ -1,6 +1,8 @@
 // Catalog of every dashboard widget the user can pin to their home page.
 // The frontend renders the actual UI; this is the shared metadata.
 
+export type WidgetSize = "sm" | "md" | "lg" | "xl";
+
 export interface DashboardWidgetDef {
   key: string;
   titleAr: string;
@@ -9,8 +11,56 @@ export interface DashboardWidgetDef {
   descriptionEn: string;
   // Any one of these permission keys is enough.
   requiredPerms: string[];
-  size: "sm" | "md" | "lg" | "xl";
+  size: WidgetSize;
 }
+
+// ─── Pinned widget instance + custom widget config ───────────────────────────
+
+/** A single pin on the user's dashboard. key references a catalog widget or
+ *  a custom widget (key starts with "custom:"). size overrides the default. */
+export interface PinnedWidget {
+  key: string;
+  size?: WidgetSize;
+}
+
+export type CustomWidgetSource = "apr" | "qc" | "schedule";
+
+/** Settings the user picks when building a custom KPI widget. */
+export interface CustomWidget {
+  id: string;
+  titleAr: string;
+  titleEn: string;
+  source: CustomWidgetSource;
+  // APR: pick a metric and aggregation
+  aprMetric?: string;
+  aprAggregation?: "latest" | "average";
+  // QC: pick a counter
+  qcMetric?: "total" | "approved" | "rejected" | "pending"
+           | "internal_rate" | "external_rate" | "csat_rate";
+  qcPeriod?: "current_month" | "all";
+  // Schedule: pick what to show
+  scheduleMetric?: "today_shift" | "today_break" | "week_offs" | "week_working_days";
+}
+
+export interface DashboardState {
+  pinned: PinnedWidget[];
+  customs: CustomWidget[];
+}
+
+/** Map size → Tailwind grid span (6-column grid).  */
+export const SIZE_TO_COL: Record<WidgetSize, string> = {
+  sm: "lg:col-span-1",
+  md: "lg:col-span-2",
+  lg: "lg:col-span-3",
+  xl: "lg:col-span-6",
+};
+
+/** Required permission for each custom-widget source. */
+export const CUSTOM_SOURCE_PERMS: Record<CustomWidgetSource, string[]> = {
+  apr: ["apr.view_own", "apr.view_team", "apr.view_project", "apr.view_all"],
+  qc:  ["qc.view_own", "qc.evaluate", "qc.approve", "qc.approve_team"],
+  schedule: ["schedule.view_own", "schedule.view_team", "schedule.view_project", "schedule.manage"],
+};
 
 export const DASHBOARD_WIDGETS: DashboardWidgetDef[] = [
   {

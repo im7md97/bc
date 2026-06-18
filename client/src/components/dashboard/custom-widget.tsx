@@ -1,0 +1,120 @@
+import { Sparkles, BarChart3, ListChecks, Clock } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useApi } from "@/hooks/use-api";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { formatMetric, formatHms, type MetricDef } from "@/lib/duration";
+import type { CustomWidget } from "@shared/dashboard";
+
+const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+function todayKey() { return DAY_KEYS[new Date().getDay()]; }
+function weekStartFor(date: Date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - d.getDay());
+  return d.toISOString().slice(0, 10);
+}
+
+interface Props { widget: CustomWidget }
+
+export function CustomWidgetCard({ widget }: Props) {
+  const { lang } = useLanguage();
+  const title = lang === "ar" ? widget.titleAr : widget.titleEn;
+  const Icon = widget.source === "apr" ? BarChart3
+            : widget.source === "qc" ? ListChecks
+            : widget.source === "schedule" ? Clock
+            : Sparkles;
+  return (
+    <Card className="rounded-2xl h-full border-primary/20">
+      <CardContent className="pt-5 pb-5">
+        <div className="flex items-center gap-2 mb-3">
+          <Icon className="w-4 h-4 text-primary" />
+          <h3 className="font-bold text-sm">{title || "—"}</h3>
+        </div>
+        {widget.source === "apr" && <AprValue widget={widget} />}
+        {widget.source === "qc" && <QcValue widget={widget} />}
+        {widget.source === "schedule" && <ScheduleValue widget={widget} />}
+      </CardContent>
+    </Card>
+  );
+}
+
+function BigKpi({ value, hint }: { value: string; hint?: string }) {
+  return (
+    <div>
+      <div className="text-3xl font-extrabold text-primary" dir="ltr">{value}</div>
+      {hint && <div className="text-xs text-muted-foreground mt-1">{hint}</div>}
+    </div>
+  );
+}
+
+function AprValue({ widget }: Props) {
+  const { data, isLoading } = useApi<{ rows: any[]; metricDefs: MetricDef[] }>("/api/apr/latest");
+  if (isLoading) return <Skeleton className="h-12 w-full" />;
+  if (!widget.aprMetric) return <p className="text-xs text-muted-foreground">—</p>;
+  const def = (data?.metricDefs ?? []).find((d) => d.key === widget.aprMetric);
+  const aggregation = widget.aprAggregation ?? "latest";
+  if (aggregation === "latest") {
+    const row = data?.rows?.[0];
+    return <BigKpi value={formatMetric(def, row?.metrics?.[widget.aprMetric])} />;
+  }
+  // average across visible rows
+  const nums = (data?.rows ?? [])
+    .map((r) => Number(r.metrics?.[widget.aprMetric!]))
+    .filter((n) => !isNaN(n));
+  if (nums.length === 0) return <BigKpi value="—" />;
+  const avg = nums.reduce((a, b) => a + b, 0) / nums.length;
+  return <BigKpi value={def ? formatMetric(def, avg) : avg.toFixed(2)} hint={`n=${nums.length}`} />;
+}
+
+function QcValue({ widget }: Props) {
+  const { t } = useLanguage();
+  const now = new Date();
+  const qs = widget.qcPeriod === "all" ? "" : `?year=${now.getFullYear()}&month=${now.getMonth() + 1}`;
+  const { data, isLoading } = useApi<any>(`/api/qc/stats${qs}`,
+    { queryKey: ["/api/qc/stats", "custom", widget.id, widget.qcPeriod] });
+  if (isLoading) return <Skeleton className="h-12 w-full" />;
+  if (!widget.qcMetric || !data) return <BigKpi value="—" />;
+  const m = widget.qcMetric;
+  if (m === "total" || m === "approved" || m === "rejected" || m === "pending") {
+    return <BigKpi value={String(data[m] ?? 0)} />;
+  }
+  const rate = (group: any) => {
+    const total = (group?.pass ?? 0) + (group?.fail ?? 0);
+    return total > 0 ? `${Math.round((group.pass / total) * 100)}%` : "—";
+  };
+  if (m === "internal_rate") return <BigKpi value={rate(data.internal)} />;
+  if (m === "external_rate") return <BigKpi value={rate(data.external)} />;
+  if (m === "csat_rate") return <BigKpi value={rate(data.csat)} />;
+  return <BigKpi value="—" />;
+}
+
+function ScheduleValue({ widget }: Props) {
+  const ws = weekStartFor(new Date());
+  const { data, isLoading } = useApi<any>(`/api/schedules?weekStart=${ws}`,
+    { queryKey: ["/api/schedules", ws, "custom", widget.id] });
+  if (isLoading) return <Skeleton className="h-12 w-full" />;
+  const row = data?.schedules?.[0];
+  if (!row) return <BigKpi value="—" />;
+  const today = row.shifts?.[todayKey()];
+  if (widget.scheduleMetric === "today_shift") {
+    if (today?.isOff) return <BigKpi value="OFF" />;
+    return <BigKpi value={today?.start && today?.end ? `${today.start}–${today.end}` : "—"} />;
+  }
+  if (widget.scheduleMetric === "today_break") {
+    const breaks: { start: string; end: string }[] = Array.isArray(today?.breaks) ? today.breaks
+      : (today?.breakStart && today?.breakEnd ? [{ start: today.breakStart, end: today.breakEnd }] : []);
+    if (breaks.length === 0) return <BigKpi value="—" />;
+    return <BigKpi value={`${breaks[0].start}–${breaks[0].end}`}
+      hint={breaks.length > 1 ? `+${breaks.length - 1}` : undefined} />;
+  }
+  if (widget.scheduleMetric === "week_offs") {
+    const offs = DAY_KEYS.filter((d) => row.shifts?.[d]?.isOff).length;
+    return <BigKpi value={String(offs)} />;
+  }
+  if (widget.scheduleMetric === "week_working_days") {
+    const working = DAY_KEYS.filter((d) => row.shifts?.[d]?.start && !row.shifts?.[d]?.isOff).length;
+    return <BigKpi value={String(working)} />;
+  }
+  return <BigKpi value="—" />;
+}
