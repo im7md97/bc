@@ -50,6 +50,7 @@ export async function seedCore(): Promise<{ adminPassword?: string }> {
       target_agent_id integer NOT NULL REFERENCES agents(id),
       week_start text NOT NULL,
       day_key text NOT NULL,
+      day_keys jsonb,
       status varchar(30) NOT NULL DEFAULT 'pending_supervisor',
       requester_comment text,
       supervisor_comment text,
@@ -59,6 +60,18 @@ export async function seedCore(): Promise<{ adminPassword?: string }> {
       resolved_at timestamp,
       created_at timestamp NOT NULL DEFAULT now(),
       updated_at timestamp NOT NULL DEFAULT now()
+    );
+    ALTER TABLE shift_swap_requests ADD COLUMN IF NOT EXISTS day_keys jsonb;
+    CREATE TABLE IF NOT EXISTS attendance (
+      id serial PRIMARY KEY,
+      agent_id integer NOT NULL REFERENCES agents(id),
+      date text NOT NULL,
+      status varchar(20) NOT NULL,
+      note text,
+      recorded_by_user_id integer REFERENCES users(id),
+      created_at timestamp NOT NULL DEFAULT now(),
+      updated_at timestamp NOT NULL DEFAULT now(),
+      UNIQUE (agent_id, date)
     );
   `);
 

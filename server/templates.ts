@@ -31,6 +31,31 @@ export function sendUsersTemplate(res: Response) {
   }]);
 }
 
+/** Multi-week template with 14 actual date columns starting from next Sunday. */
+export function sendSchedulesByDateTemplate(res: Response) {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - start.getDay() + 7); // next Sunday
+  const dates: string[] = [];
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    dates.push(d.toISOString().slice(0, 10));
+  }
+  const row = (emp: string, picker: (i: number) => string) => {
+    const o: Record<string, string> = { Emp: emp };
+    dates.forEach((d, i) => (o[d] = picker(i)));
+    return o;
+  };
+  sendXlsx(res, "schedules-bidate-template.xlsx", [{
+    name: "Schedules",
+    rows: [
+      row("ISC001", (i) => (i % 7 === 5 || i % 7 === 6 ? "OFF" : "08:00-16:00")),
+      row("ISC002", (i) => (i % 7 === 2 ? "OFF" : "16:00-23:00")),
+    ],
+  }]);
+}
+
 export function sendSchedulesTemplate(res: Response) {
   sendXlsx(res, "schedules-template.xlsx", [{
     name: "Schedules",

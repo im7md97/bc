@@ -10,8 +10,8 @@ import { requirePermission, requireFeature, grantsOf } from "../permissions";
 import { sendError, errInternal, errNotFound, errInvalidId } from "../http-errors";
 import { getScopedAgents } from "../scoping";
 import { parseFirstSheet } from "../excel";
-import { sendSchedulesTemplate } from "../templates";
-import { autoScheduleBreaks, parseShiftCell, DAY_KEYS, readShifts, writeShifts } from "../schedule-utils";
+import { sendSchedulesTemplate, sendSchedulesByDateTemplate } from "../templates";
+import { autoScheduleBreaks, parseShiftCell, DAY_KEYS, readShifts, writeShifts, weekStartAndDay } from "../schedule-utils";
 import { notifyUser, notifyRole } from "../notify";
 import type { SessionUser } from "../auth";
 
@@ -286,6 +286,13 @@ export function registerScheduleRoutes(app: Express) {
     (_req, res) => sendSchedulesTemplate(res),
   );
 
+  app.get(
+    "/api/schedules/template-bidate",
+    requireFeature("menu.schedule"),
+    requirePermission("schedule.import", "schedule.manage"),
+    (_req, res) => sendSchedulesByDateTemplate(res),
+  );
+
   // ── Peers list for shift-swap (same project as caller, excluding self) ─────
   app.get(
     "/api/schedules/peers",
@@ -391,6 +398,107 @@ export function registerScheduleRoutes(app: Express) {
     },
   );
 
+  // ── Multi-week / by-date Excel import ────────────────────────────────────────
+  // Excel has one row per agent. Headers: Emp + N date columns (YYYY-MM-DD).
+  // The server groups dates by week_start and writes one schedules row per
+  // agent per week with the matching days filled in.
+  app.post(
+    "/api/schedules/import-by-date",
+    requireFeature("menu.schedule"),
+    requirePermission("schedule.import"),
+    excelUpload.single("file"),
+    async (req, res) => {
+      try {
+        if (!req.file) return sendError(res, 400, "no_file", "لم يتم رفع أي ملف", "No file uploaded");
+        const me = req.user as SessionUser;
+        const { projectId } = req.body ?? {};
+        if (!projectId) {
+          return sendError(res, 400, "missing_fields", "المشروع مطلوب", "projectId is required");
+        }
+        const { headers, rows } = parseFirstSheet(req.file.buffer);
+        const empHeader = findEmpHeader(headers);
+        if (!empHeader) {
+          return sendError(res, 400, "missing_emp_column",
+            "الملف لا يحتوي عمود Emp", "File is missing the Emp column");
+        }
+        // Date columns: any header matching YYYY-MM-DD (or an Excel date-like value)
+        const dateColumns: { header: string; weekStart: string; dayKey: string; date: string }[] = [];
+        for (const h of headers.filter((x) => x !== empHeader)) {
+          const m = weekStartAndDay(h.trim());
+          if (m) dateColumns.push({ header: h, weekStart: m.weekStart, dayKey: m.dayKey, date: h.trim() });
+        }
+        if (dateColumns.length === 0) {
+          return sendError(res, 400, "no_date_columns",
+            "الملف لا يحتوي أعمدة تواريخ صالحة (YYYY-MM-DD)",
+            "File has no valid date columns (YYYY-MM-DD)");
+        }
+
+        const allAgents = await db.select().from(agents)
+          .where(eq(agents.projectId, Number(projectId)));
+        const agentByEmp = new Map(allAgents.map((a) => [a.employeeId.trim().toLowerCase(), a]));
+
+        // For each (agent, weekStart) we accumulate a WeeklyShifts object.
+        const buckets = new Map<string, { agentId: number; weekStart: string; shifts: WeeklyShifts }>();
+        let imported = 0;
+        let cellErrors = 0;
+        const unknown: string[] = [];
+
+        for (const row of rows) {
+          const emp = String(row[empHeader] ?? "").trim();
+          if (!emp) continue;
+          const agent = agentByEmp.get(emp.toLowerCase());
+          if (!agent) { unknown.push(emp); continue; }
+          for (const col of dateColumns) {
+            const raw = row[col.header];
+            if (raw === undefined || raw === null || String(raw).trim() === "") continue;
+            const parsed = parseShiftCell(raw);
+            if (parsed === null) { cellErrors++; continue; }
+            const bucketKey = `${agent.id}|${col.weekStart}`;
+            if (!buckets.has(bucketKey)) {
+              buckets.set(bucketKey, { agentId: agent.id, weekStart: col.weekStart, shifts: {} });
+            }
+            buckets.get(bucketKey)!.shifts[col.dayKey] = parsed;
+          }
+        }
+
+        // Write each bucket, merging with any existing schedule for that week.
+        for (const b of buckets.values()) {
+          const [existing] = await db.select().from(schedules).where(and(
+            eq(schedules.agentId, b.agentId),
+            eq(schedules.weekStart, b.weekStart),
+          ));
+          if (existing) {
+            const merged = { ...readShifts(existing.shiftsJson), ...b.shifts };
+            await db.update(schedules).set({
+              shiftsJson: writeShifts(merged), updatedAt: new Date(),
+            }).where(eq(schedules.id, existing.id));
+          } else {
+            await db.insert(schedules).values({
+              agentId: b.agentId, weekStart: b.weekStart,
+              shiftsJson: writeShifts(b.shifts), createdByUserId: me.id,
+            });
+          }
+          imported++;
+        }
+
+        const weeksAffected = new Set(Array.from(buckets.values()).map((b) => b.weekStart));
+        res.json({
+          imported,
+          weeksAffected: Array.from(weeksAffected).sort(),
+          dateColumns: dateColumns.length,
+          cellErrors,
+          unknown: Array.from(new Set(unknown)),
+        });
+      } catch (err: any) {
+        if (err?.message === "xlsx_only") {
+          return sendError(res, 400, "invalid_file", "يُسمح فقط بملفات xlsx", "Only .xlsx files are allowed");
+        }
+        console.error("[schedules.import-by-date]", err);
+        errInternal(res);
+      }
+    },
+  );
+
   // ── Shift swap requests ──────────────────────────────────────────────────────
   app.get(
     "/api/schedules/swap-requests",
@@ -444,14 +552,20 @@ export function registerScheduleRoutes(app: Express) {
     async (req, res) => {
       try {
         const me = req.user as SessionUser;
-        const { targetAgentId, weekStart, dayKey, comment } = req.body ?? {};
-        if (!targetAgentId || !weekStart || !dayKey) {
+        const { targetAgentId, weekStart, dayKey, dayKeys, comment } = req.body ?? {};
+        // Accept either a single dayKey (legacy) or an array of dayKeys.
+        const allDays: string[] = Array.isArray(dayKeys) && dayKeys.length > 0
+          ? Array.from(new Set(dayKeys.map(String)))
+          : dayKey ? [String(dayKey)] : [];
+        if (!targetAgentId || !weekStart || allDays.length === 0) {
           return sendError(res, 400, "missing_fields",
             "الوكيل المستهدف وتاريخ الأسبوع واليوم مطلوبة",
-            "targetAgentId, weekStart and dayKey are required");
+            "targetAgentId, weekStart and at least one day are required");
         }
-        if (!DAY_KEYS.includes(dayKey)) {
-          return sendError(res, 400, "invalid_day", "يوم غير صالح", "Invalid day");
+        for (const d of allDays) {
+          if (!DAY_KEYS.includes(d as any)) {
+            return sendError(res, 400, "invalid_day", `يوم غير صالح: ${d}`, `Invalid day: ${d}`);
+          }
         }
         const [requester] = await db.select().from(agents).where(eq(agents.userId, me.id));
         if (!requester) {
@@ -468,7 +582,8 @@ export function registerScheduleRoutes(app: Express) {
           requesterAgentId: requester.id,
           targetAgentId: target.id,
           weekStart: String(weekStart),
-          dayKey: String(dayKey),
+          dayKey: allDays[0],              // back-compat: first day
+          dayKeys: allDays,                 // full list
           requesterComment: comment ? String(comment) : null,
           status: "pending_supervisor",
         }).returning();
@@ -479,8 +594,8 @@ export function registerScheduleRoutes(app: Express) {
             type: "swap_request",
             titleAr: "طلب تبديل جدول جديد",
             titleEn: "New shift swap request",
-            bodyAr: `طلب من ${requester.nameAr} لتبديل ${dayKey} مع ${target.nameAr}`,
-            bodyEn: `${requester.nameEn} requests swap on ${dayKey} with ${target.nameEn}`,
+            bodyAr: `طلب من ${requester.nameAr} لتبديل ${allDays.join(", ")} مع ${target.nameAr}`,
+            bodyEn: `${requester.nameEn} requests swap on ${allDays.join(", ")} with ${target.nameEn}`,
             linkPath: "/schedule",
           });
         }
@@ -575,7 +690,7 @@ export function registerScheduleRoutes(app: Express) {
         }
 
         if (action === "approve") {
-          // Apply the swap: exchange the day's ShiftDay between the two schedule rows.
+          // Apply the swap: exchange every requested day's ShiftDay between the two rows.
           await db.transaction(async (tx) => {
             const [reqRow] = await tx.select().from(schedules).where(and(
               eq(schedules.agentId, request.requesterAgentId),
@@ -587,11 +702,15 @@ export function registerScheduleRoutes(app: Express) {
             ));
             const reqShifts: WeeklyShifts = reqRow ? readShifts(reqRow.shiftsJson) : {};
             const tgtShifts: WeeklyShifts = tgtRow ? readShifts(tgtRow.shiftsJson) : {};
-            const day = request.dayKey;
-            const reqDay: ShiftDay | undefined = reqShifts[day];
-            const tgtDay: ShiftDay | undefined = tgtShifts[day];
-            reqShifts[day] = tgtDay ?? { isOff: true };
-            tgtShifts[day] = reqDay ?? { isOff: true };
+            const days = Array.isArray(request.dayKeys) && request.dayKeys.length > 0
+              ? request.dayKeys
+              : [request.dayKey];
+            for (const day of days) {
+              const reqDay: ShiftDay | undefined = reqShifts[day];
+              const tgtDay: ShiftDay | undefined = tgtShifts[day];
+              reqShifts[day] = tgtDay ?? { isOff: true };
+              tgtShifts[day] = reqDay ?? { isOff: true };
+            }
 
             if (reqRow) {
               await tx.update(schedules).set({ shiftsJson: writeShifts(reqShifts), updatedAt: new Date() })

@@ -65,6 +65,7 @@ interface SwapRequest {
   targetAgentId: number;
   weekStart: string;
   dayKey: string;
+  dayKeys: string[] | null;
   status: "pending_supervisor" | "pending_wfm" | "approved" | "rejected" | "cancelled";
   requesterComment: string | null;
   supervisorComment: string | null;
@@ -76,6 +77,11 @@ interface SwapRequest {
   targetNameAr: string | null;
   targetNameEn: string | null;
   targetEmp: string | null;
+}
+
+interface AttendanceData {
+  agents: { id: number; employeeId: string; nameAr: string; nameEn: string; supervisorUserId: number | null }[];
+  records: { agentId: number; date: string; status: "present" | "late" | "absent"; note: string | null }[];
 }
 
 const DAY_KEYS: { key: string; labelKey: TranslationKey }[] = [
@@ -125,13 +131,17 @@ export default function SchedulePage() {
   const canRequestSwap = can(me, "schedule.swap_request");
   const canReviewSwap = can(me, "schedule.swap_review_team");
   const canApproveSwap = can(me, "schedule.swap_approve");
+  const canRecordAttendance = can(me, "attendance.record");
+  const canViewAttendance = can(me, "attendance.view_own", "attendance.view_team", "attendance.view_all", "attendance.record");
   const isAgentView = can(me, "schedule.view_own") && !canManage && !can(me, "schedule.view_team", "schedule.view_project");
 
   const [weekStart, setWeekStart] = useState<string>(weekStartFor(new Date()));
   const [search, setSearch] = useState("");
+  const [breakHour, setBreakHour] = useState("");
   const [editing, setEditing] = useState<{ agent: AgentSummary; dayKey: string; shift: ShiftDay; scheduleId: number | null; weekShifts: Record<string, ShiftDay> } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [importBidateOpen, setImportBidateOpen] = useState(false);
   const [swapOpen, setSwapOpen] = useState<{ dayKey: string } | null>(null);
 
   const { data, isLoading, refetch } = useApi<{ agents: AgentSummary[]; schedules: ScheduleRow[]; settings: ScheduleSettings | null }>(
@@ -150,15 +160,36 @@ export default function SchedulePage() {
     return m;
   }, [data]);
 
+  /** Parses "5", "5:00", "14:00" → integer hour (0..23) or null. */
+  const breakHourInt = useMemo(() => {
+    const s = breakHour.trim();
+    if (!s) return null;
+    const m = /^(\d{1,2})(?::\d{0,2})?$/.exec(s);
+    if (!m) return null;
+    const h = Number(m[1]);
+    return h >= 0 && h <= 23 ? h : null;
+  }, [breakHour]);
+
   const filteredAgents = useMemo(() => {
     const list = data?.agents ?? [];
-    if (!search) return list;
     const s = search.toLowerCase();
-    return list.filter((a) =>
+    let out = s ? list.filter((a) =>
       a.employeeId.toLowerCase().includes(s) ||
       a.nameAr.toLowerCase().includes(s) ||
-      a.nameEn.toLowerCase().includes(s));
-  }, [data, search]);
+      a.nameEn.toLowerCase().includes(s)) : list;
+    // Break-hour filter: keep agents who have at least one break starting at that hour.
+    if (breakHourInt !== null) {
+      out = out.filter((a) => {
+        const row = scheduleByAgent.get(a.id);
+        if (!row) return false;
+        return Object.values(row.shifts).some((shift: any) => {
+          const breaks = readBreaks(shift);
+          return breaks.some((b) => Number(b.start.split(":")[0]) === breakHourInt);
+        });
+      });
+    }
+    return out;
+  }, [data, search, breakHourInt, scheduleByAgent]);
 
   const save = useApiMutation(
     ({ agentId, shifts }: { agentId: number; shifts: Record<string, ShiftDay> }) =>
@@ -280,6 +311,9 @@ export default function SchedulePage() {
               <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} className="gap-1.5">
                 <Upload className="w-4 h-4" /> {t("schImport")}
               </Button>
+              <Button variant="outline" size="sm" onClick={() => setImportBidateOpen(true)} className="gap-1.5">
+                <Upload className="w-4 h-4" /> {t("schImportBidate")}
+              </Button>
             </>
           )}
           {canAutoBreaks && (
@@ -295,6 +329,9 @@ export default function SchedulePage() {
       <Tabs defaultValue="week">
         <TabsList>
           <TabsTrigger value="week">{t("schTitle")}</TabsTrigger>
+          {canViewAttendance && (
+            <TabsTrigger value="attendance">{t("attTabTitle")}</TabsTrigger>
+          )}
           {(canReviewSwap || canApproveSwap) && (
             <TabsTrigger value="swap" className="gap-1.5">
               {t("schSwapTab")}
@@ -310,7 +347,7 @@ export default function SchedulePage() {
         </TabsList>
 
         <TabsContent value="week">
-          <div className="flex gap-2 mb-4">
+          <div className="flex flex-wrap gap-2 mb-4">
             <div className="relative flex-1 max-w-sm">
               <Search className={`absolute ${dir === "rtl" ? "right-3" : "left-3"} top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground`} />
               <Input
@@ -319,6 +356,16 @@ export default function SchedulePage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 data-testid="input-schedule-search"
+              />
+            </div>
+            <div className="max-w-[200px]">
+              <Input
+                placeholder={t("schBreakFilter")}
+                title={t("schBreakFilterHint")}
+                value={breakHour}
+                onChange={(e) => setBreakHour(e.target.value)}
+                dir="ltr"
+                data-testid="input-break-filter"
               />
             </div>
           </div>
@@ -395,6 +442,12 @@ export default function SchedulePage() {
           </div>
         </TabsContent>
 
+        {canViewAttendance && (
+          <TabsContent value="attendance">
+            <AttendancePanel canRecord={canRecordAttendance} t={t} lang={lang} dir={dir} />
+          </TabsContent>
+        )}
+
         {(canReviewSwap || canApproveSwap) && (
           <TabsContent value="swap">
             <SwapList
@@ -435,6 +488,16 @@ export default function SchedulePage() {
           projectId={data.agents[0]?.projectId ?? null}
           weekStart={weekStart}
           onImported={() => { setImportOpen(false); refetch(); }}
+          t={t} dir={dir} toast={toast}
+        />
+      )}
+
+      {importBidateOpen && data && (
+        <ImportBidateDialog
+          open={importBidateOpen}
+          onClose={() => setImportBidateOpen(false)}
+          projectId={data.agents[0]?.projectId ?? null}
+          onImported={() => { setImportBidateOpen(false); refetch(); }}
           t={t} dir={dir} toast={toast}
         />
       )}
@@ -663,11 +726,14 @@ function ImportDialog({ open, onClose, projectId, weekStart, onImported, t, dir,
 function SwapDialog({ dayKey, weekStart, onClose, onSuccess, t, lang, dir }: any) {
   const [target, setTarget] = useState<string>("");
   const [comment, setComment] = useState("");
-  // Fetch peers from same project — agent's own /api/schedules only includes self.
+  // Initialize the selected days with the clicked day already checked.
+  const [selectedDays, setSelectedDays] = useState<string[]>([dayKey]);
   const { data: peers, isLoading: peersLoading } = useApi<{ id: number; employeeId: string; nameAr: string; nameEn: string }[]>("/api/schedules/peers");
+  const toggleDay = (k: string) =>
+    setSelectedDays((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]));
   const submit = useApiMutation(
     () => apiRequest("POST", "/api/schedules/swap-requests",
-      { targetAgentId: Number(target), weekStart, dayKey, comment }),
+      { targetAgentId: Number(target), weekStart, dayKey: selectedDays[0] ?? dayKey, dayKeys: selectedDays, comment }),
     { onSuccess, successMessage: t("createSuccess") },
   );
   const dayLabel: TranslationKey = DAY_LABEL_BY_KEY[String(dayKey)] ?? "schDaySun";
@@ -676,9 +742,30 @@ function SwapDialog({ dayKey, weekStart, onClose, onSuccess, t, lang, dir }: any
       <DialogContent dir={dir} className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{t("schSwapTitle")}</DialogTitle>
-          <DialogDescription>{t(dayLabel)}</DialogDescription>
+          <DialogDescription>{t("schSwapPickDays")}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>{t("schSwapDaysLabel")}</Label>
+            <div className="grid grid-cols-7 gap-1.5">
+              {DAY_KEYS.map((d) => {
+                const checked = selectedDays.includes(d.key);
+                return (
+                  <button
+                    type="button"
+                    key={d.key}
+                    onClick={() => toggleDay(d.key)}
+                    className={`rounded-lg px-2 py-2 text-xs border ${
+                      checked ? "bg-primary text-primary-foreground border-primary font-bold" : "bg-secondary/30 border-border/40"
+                    }`}
+                    data-testid={`swap-day-${d.key}`}
+                  >
+                    {t(d.labelKey)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           <div className="space-y-1.5">
             <Label>{t("schSwapWith")}</Label>
             <Select value={target} onValueChange={setTarget}>
@@ -701,7 +788,10 @@ function SwapDialog({ dayKey, weekStart, onClose, onSuccess, t, lang, dir }: any
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>{t("cancel")}</Button>
-          <Button onClick={() => submit.mutate(undefined as any)} disabled={!target || submit.isPending}>{t("schSwapSubmit")}</Button>
+          <Button onClick={() => submit.mutate(undefined as any)}
+            disabled={!target || selectedDays.length === 0 || submit.isPending}>
+            {t("schSwapSubmit")}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -742,7 +832,9 @@ function SwapList({ items, role, refetch, t, lang, dir, myAgentId }: any) {
   return (
     <div className="space-y-2">
       {items.map((r: SwapRequest) => {
-        const dayLabel: TranslationKey = DAY_LABEL_BY_KEY[String(r.dayKey)] ?? "schDaySun";
+        const days = (r.dayKeys && r.dayKeys.length > 0) ? r.dayKeys : [r.dayKey];
+        const dayLabels = days.map((d) => DAY_LABEL_BY_KEY[String(d)] ?? "schDaySun") as TranslationKey[];
+        const dayLabel: TranslationKey = dayLabels[0] ?? "schDaySun";
         const showSupActions = role === "supervisor" && r.status === "pending_supervisor";
         const showWfmActions = role === "wfm" && r.status === "pending_wfm";
         const showCancel = role === "agent" && ["pending_supervisor", "pending_wfm"].includes(r.status);
@@ -756,7 +848,10 @@ function SwapList({ items, role, refetch, t, lang, dir, myAgentId }: any) {
                   <span className="font-bold">{lang === "ar" ? r.targetNameAr : r.targetNameEn}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-xs">{t(dayLabel)} · <span dir="ltr" className="ms-1">{r.weekStart}</span></Badge>
+                  <Badge variant="outline" className="text-xs">
+                    {dayLabels.map((k) => t(k)).join(" · ")}
+                    {" · "}<span dir="ltr" className="ms-1">{r.weekStart}</span>
+                  </Badge>
                   {swapStatusBadge(r.status, t)}
                 </div>
               </div>
@@ -789,5 +884,180 @@ function SwapList({ items, role, refetch, t, lang, dir, myAgentId }: any) {
         );
       })}
     </div>
+  );
+}
+
+// ─── Attendance panel ───────────────────────────────────────────────────────
+
+function AttendancePanel({ canRecord, t, lang, dir }: any) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [date, setDate] = useState<string>(today);
+  const { data, isLoading, refetch } = useApi<AttendanceData>(
+    `/api/attendance?date=${date}`,
+    { queryKey: ["/api/attendance", date] },
+  );
+  // Local edits keyed by agentId.
+  const [edits, setEdits] = useState<Record<number, { status: string; note?: string }>>({});
+
+  // Reset edits when date or data changes.
+  const recordByAgent = useMemo(() => {
+    const m = new Map<number, { status: string; note: string | null }>();
+    for (const r of data?.records ?? []) m.set(r.agentId, { status: r.status, note: r.note });
+    return m;
+  }, [data]);
+
+  const statusOf = (agentId: number): string =>
+    edits[agentId]?.status ?? recordByAgent.get(agentId)?.status ?? "";
+
+  const setStatus = (agentId: number, status: string) =>
+    setEdits((s) => ({ ...s, [agentId]: { ...(s[agentId] ?? {}), status } }));
+
+  const saveAll = useApiMutation(
+    () => apiRequest("POST", "/api/attendance/bulk", {
+      date,
+      rows: Object.entries(edits).map(([agentId, v]) => ({
+        agentId: Number(agentId), status: v.status, note: v.note,
+      })),
+    }),
+    { onSuccess: () => { setEdits({}); refetch(); }, successMessage: t("attSaved") },
+  );
+
+  const STATUS_OPTS: { value: "present" | "late" | "absent"; labelKey: TranslationKey; className: string }[] = [
+    { value: "present", labelKey: "attStatusPresent", className: "bg-emerald-500/15 text-emerald-700 border-emerald-300" },
+    { value: "late",    labelKey: "attStatusLate",    className: "bg-amber-500/15 text-amber-700 border-amber-300" },
+    { value: "absent",  labelKey: "attStatusAbsent",  className: "bg-red-500/15 text-red-700 border-red-300" },
+  ];
+
+  return (
+    <Card className="rounded-2xl">
+      <CardContent className="pt-5 pb-5 space-y-4">
+        <div className="flex items-end justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="text-lg font-bold">{t("attTitle")}</h2>
+            <p className="text-xs text-muted-foreground">{t("attSubtitle")}</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("attDate")}</Label>
+            <Input type="date" value={date} onChange={(e) => { setDate(e.target.value); setEdits({}); }} dir="ltr" />
+          </div>
+          {canRecord && Object.keys(edits).length > 0 && (
+            <Button onClick={() => saveAll.mutate(undefined as any)} disabled={saveAll.isPending}
+              className="gap-2" data-testid="button-save-attendance">
+              <Save className="w-4 h-4" /> {t("attSaveAll")} ({Object.keys(edits).length})
+            </Button>
+          )}
+        </div>
+
+        {isLoading && <Skeleton className="h-40 w-full" />}
+        {!isLoading && (data?.agents.length ?? 0) === 0 && (
+          <p className="text-center text-muted-foreground py-8">{t("noData")}</p>
+        )}
+        {!isLoading && (data?.agents.length ?? 0) > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-secondary/30">
+                <tr>
+                  <th className="text-start px-3 py-2 font-semibold">{t("schAgent")}</th>
+                  <th className="text-center px-3 py-2 font-semibold">{t("attStatusPresent")}</th>
+                  <th className="text-center px-3 py-2 font-semibold">{t("attStatusLate")}</th>
+                  <th className="text-center px-3 py-2 font-semibold">{t("attStatusAbsent")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data!.agents.map((a) => {
+                  const cur = statusOf(a.id);
+                  return (
+                    <tr key={a.id} className="border-t border-border/40">
+                      <td className="px-3 py-2">
+                        <div className="font-semibold">{lang === "ar" ? a.nameAr : a.nameEn}</div>
+                        <div className="text-[10px] text-muted-foreground" dir="ltr">{a.employeeId}</div>
+                      </td>
+                      {STATUS_OPTS.map((opt) => (
+                        <td key={opt.value} className="px-2 py-2 text-center">
+                          <button
+                            type="button"
+                            disabled={!canRecord}
+                            onClick={() => setStatus(a.id, opt.value)}
+                            className={`rounded-lg px-3 py-1.5 text-xs border w-full ${
+                              cur === opt.value ? `${opt.className} font-bold` : "bg-card border-border/40 text-muted-foreground"
+                            } ${canRecord ? "hover:opacity-80 cursor-pointer" : "cursor-default"}`}
+                            data-testid={`att-${a.id}-${opt.value}`}
+                          >
+                            {t(opt.labelKey)}
+                          </button>
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Multi-week / by-date Excel import ───────────────────────────────────────
+
+function ImportBidateDialog({ open, onClose, projectId, onImported, t, dir, toast }: any) {
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ imported: number; weeksAffected: string[]; dateColumns: number; cellErrors: number; unknown: string[] } | null>(null);
+  const submit = async () => {
+    if (!file || !projectId) return;
+    setBusy(true);
+    setResult(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("projectId", String(projectId));
+      const res = await fetch("/api/schedules/import-by-date", { method: "POST", body: fd, credentials: "include" });
+      if (!res.ok) throw await parseError(res);
+      const body = await res.json();
+      setResult(body);
+      toast({ title: `${t("schImported")} ${body.imported}` });
+      if (body.imported > 0) onImported();
+    } catch (err: any) {
+      toast({ title: err.message, variant: "destructive" });
+    } finally { setBusy(false); }
+  };
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent dir={dir} className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{t("schImportBidate")}</DialogTitle>
+          <DialogDescription>{t("schImportBidateHint")}</DialogDescription>
+        </DialogHeader>
+        <Button variant="outline" size="sm" className="self-start gap-1.5"
+          onClick={() => downloadFile("/api/schedules/template-bidate", "schedules-bidate-template.xlsx")}>
+          <Upload className="w-4 h-4 rotate-180" /> {t("schImportBidateTemplate")}
+        </Button>
+        <Input type="file" accept=".xlsx" dir="ltr" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setResult(null); }} />
+        {result && (
+          <div className="bg-secondary/30 rounded-lg p-3 text-xs space-y-1">
+            <div className="flex justify-between"><span>{t("schImported")}:</span><span className="font-bold" dir="ltr">{result.imported}</span></div>
+            <div className="flex justify-between"><span>{t("schImportedWeeks")}:</span>
+              <span className="font-bold" dir="ltr">{result.weeksAffected.join(", ") || "—"}</span>
+            </div>
+            {result.unknown.length > 0 && (
+              <div className="pt-2 border-t mt-2">
+                <div className="text-amber-700 font-semibold mb-1">{t("aprUnknownRows")} ({result.unknown.length}):</div>
+                <div className="text-[10px] flex flex-wrap gap-1" dir="ltr">
+                  {result.unknown.map((e, i) => <span key={i} className="bg-amber-500/10 px-1.5 py-0.5 rounded">{e}</span>)}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>{result ? t("close") : t("cancel")}</Button>
+          <Button onClick={submit} disabled={!file || busy} className="gap-2">
+            <Upload className="w-4 h-4" /> {busy ? t("loading") : t("save")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

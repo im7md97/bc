@@ -356,7 +356,8 @@ export const shiftSwapRequests = pgTable("shift_swap_requests", {
   requesterAgentId: integer("requester_agent_id").notNull().references(() => agents.id),
   targetAgentId: integer("target_agent_id").notNull().references(() => agents.id),
   weekStart: text("week_start").notNull(),
-  dayKey: text("day_key").notNull(),                       // sun..sat
+  dayKey: text("day_key").notNull(),                       // sun..sat — first day, kept for back-compat
+  dayKeys: jsonb("day_keys").$type<string[]>(),            // multi-day swap: full list
   status: varchar("status", { length: 30 }).notNull().default("pending_supervisor"),
   requesterComment: text("requester_comment"),
   supervisorComment: text("supervisor_comment"),
@@ -370,6 +371,25 @@ export const shiftSwapRequests = pgTable("shift_swap_requests", {
 
 export type ShiftSwapRequest = typeof shiftSwapRequests.$inferSelect;
 export type InsertShiftSwapRequest = typeof shiftSwapRequests.$inferInsert;
+
+// ─── attendance (supervisor records present/late/absent per day) ─────────────
+
+export const ATTENDANCE_STATUSES = ["present", "late", "absent"] as const;
+export type AttendanceStatus = (typeof ATTENDANCE_STATUSES)[number];
+
+export const attendance = pgTable("attendance", {
+  id: serial("id").primaryKey(),
+  agentId: integer("agent_id").notNull().references(() => agents.id),
+  date: text("date").notNull(),                               // YYYY-MM-DD
+  status: varchar("status", { length: 20 }).notNull(),        // present | late | absent
+  note: text("note"),
+  recordedByUserId: integer("recorded_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => [unique().on(t.agentId, t.date)]);
+
+export type Attendance = typeof attendance.$inferSelect;
+export type InsertAttendance = typeof attendance.$inferInsert;
 
 // ─── qc_entries (legacy QC flow, rebuilt clean) ──────────────────────────────
 

@@ -3,6 +3,17 @@ import type { ShiftBreak, ShiftDay, WeeklyShifts } from "@shared/schema";
 export const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 export type DayKey = (typeof DAY_KEYS)[number];
 
+/** ISO date (YYYY-MM-DD) → that week's Sunday + day key for the date itself. */
+export function weekStartAndDay(dateStr: string): { weekStart: string; dayKey: DayKey } | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
+  const d = new Date(dateStr + "T00:00:00Z");
+  if (isNaN(d.getTime())) return null;
+  const dayKey = DAY_KEYS[d.getUTCDay()];
+  const ws = new Date(d);
+  ws.setUTCDate(ws.getUTCDate() - ws.getUTCDay());
+  return { weekStart: ws.toISOString().slice(0, 10), dayKey };
+}
+
 const HM = /^(\d{1,2}):(\d{2})$/;
 
 export function parseHm(text: string): number | null {
