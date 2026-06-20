@@ -8,3 +8,4 @@ vite.config.ts.*
 .env
 
 .pgdata/
+.pm2/
