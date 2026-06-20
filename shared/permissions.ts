@@ -97,7 +97,7 @@ export const DEFAULT_GRANTS: Record<Role, string[]> = {
     "agent.list_team",
     "apr.view_team", "apr.export",
     "scorecard.view_team", "scorecard.write_issues", "scorecard.send_to_agent", "scorecard.export",
-    "schedule.manage", "schedule.view_team", "schedule.swap_review_team",
+    "schedule.view_team", "schedule.swap_review_team",
     "attendance.record", "attendance.view_team",
     "qc.approve_team",
     "notifications.view_own",

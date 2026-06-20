@@ -333,6 +333,22 @@ export function registerUserRoutes(app: Express) {
           supervisorsLinked++;
         } else if (p.role === "agent" && projectId) {
           const supervisorUserId = reportToUser?.role === "supervisor" ? reportToUser.id : null;
+          // If an agent record already exists for this employeeId (e.g. on re-import),
+          // re-link it to the new user instead of leaving it pointing at a stale account.
+          const [existing] = await db.select().from(agents).where(eq(agents.employeeId, p.username));
+          if (existing) {
+            await db.update(agents).set({
+              userId: p.userId,
+              nameAr: p.displayNameAr,
+              nameEn: p.displayNameEn,
+              projectId,
+              supervisorUserId: supervisorUserId ?? existing.supervisorUserId,
+              isActive: true,
+              updatedAt: new Date(),
+            }).where(eq(agents.id, existing.id));
+            agentsCreated++;
+            continue;
+          }
           try {
             await db.insert(agents).values({
               employeeId: p.username,
@@ -345,11 +361,7 @@ export function registerUserRoutes(app: Express) {
             });
             agentsCreated++;
           } catch (err: any) {
-            if (err?.code === "23505") {
-              wiringWarnings.push({ row: p.rowNum, reason: "duplicate employeeId" });
-            } else {
-              wiringWarnings.push({ row: p.rowNum, reason: "could not create agent row" });
-            }
+            wiringWarnings.push({ row: p.rowNum, reason: "could not create agent row" });
           }
         }
       }

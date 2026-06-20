@@ -62,6 +62,8 @@ export async function seedCore(): Promise<{ adminPassword?: string }> {
       updated_at timestamp NOT NULL DEFAULT now()
     );
     ALTER TABLE shift_swap_requests ADD COLUMN IF NOT EXISTS day_keys jsonb;
+    -- Migration: supervisor no longer edits schedules directly; only WFM does.
+    DELETE FROM permission_grants WHERE role='supervisor' AND permission_key='schedule.manage';
     CREATE TABLE IF NOT EXISTS attendance (
       id serial PRIMARY KEY,
       agent_id integer NOT NULL REFERENCES agents(id),

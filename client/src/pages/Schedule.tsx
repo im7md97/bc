@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ChevronLeft, ChevronRight, Calendar, Save, Search, Settings2, Upload, Sparkles, Repeat2,
   Plus, Trash2, Check, X,
@@ -18,6 +18,9 @@ import {
 import {
   Tabs, TabsContent, TabsList, TabsTrigger,
 } from "@/components/ui/tabs";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -137,7 +140,8 @@ export default function SchedulePage() {
 
   const [weekStart, setWeekStart] = useState<string>(weekStartFor(new Date()));
   const [search, setSearch] = useState("");
-  const [breakHour, setBreakHour] = useState("");
+  const [breakHour, setBreakHour] = useState("_all");
+  const [shiftFilter, setShiftFilter] = useState("_all");
   const [editing, setEditing] = useState<{ agent: AgentSummary; dayKey: string; shift: ShiftDay; scheduleId: number | null; weekShifts: Record<string, ShiftDay> } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -154,21 +158,79 @@ export default function SchedulePage() {
     { enabled: canRequestSwap || canReviewSwap || canApproveSwap },
   );
 
+  /** Build week-wide attendance map (agentId|date → status) so the grid can
+   *  show a badge per cell. Fetched lazily for the 7 days of the visible week. */
+  const weekDates = useMemo(() =>
+    Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
+  [weekStart]);
+
+  const { data: weekAttendance, refetch: refetchAttendance } = useApi<{ records: { agentId: number; date: string; status: string }[] }[]>(
+    "_attendance_for_week",
+    {
+      enabled: canRecordAttendance || canViewAttendance,
+      queryKey: ["/api/attendance/week", weekStart],
+    },
+  );
+
+  // Lightweight per-cell upsert.
+  const recordAttendance = useApiMutation(
+    ({ agentId, date, status }: { agentId: number; date: string; status: string }) =>
+      apiRequest("POST", "/api/attendance", { agentId, date, status }),
+    {
+      onSuccess: () => refetchAttendance(),
+      successMessage: t("attSaved"),
+    },
+  );
+
+  const [attendanceMap, setAttendanceMap] = useState<Map<string, string>>(new Map());
+
+  // Fetch each day in parallel and merge into one map keyed by "agentId|date".
+  useEffect(() => {
+    if (!canRecordAttendance && !canViewAttendance) return;
+    let cancelled = false;
+    (async () => {
+      const merged = new Map<string, string>();
+      for (const date of weekDates) {
+        try {
+          const res = await fetch(`/api/attendance?date=${date}`, { credentials: "include" });
+          if (!res.ok) continue;
+          const body = await res.json();
+          for (const r of body.records ?? []) {
+            merged.set(`${r.agentId}|${r.date}`, r.status);
+          }
+        } catch { /* ignore */ }
+      }
+      if (!cancelled) setAttendanceMap(merged);
+    })();
+    return () => { cancelled = true; };
+  }, [weekStart, canRecordAttendance, canViewAttendance, recordAttendance.isPending]);
+
   const scheduleByAgent = useMemo(() => {
     const m = new Map<number, ScheduleRow>();
     for (const s of data?.schedules ?? []) m.set(s.agentId, s);
     return m;
   }, [data]);
 
-  /** Parses "5", "5:00", "14:00" → integer hour (0..23) or null. */
-  const breakHourInt = useMemo(() => {
-    const s = breakHour.trim();
-    if (!s) return null;
-    const m = /^(\d{1,2})(?::\d{0,2})?$/.exec(s);
-    if (!m) return null;
-    const h = Number(m[1]);
-    return h >= 0 && h <= 23 ? h : null;
-  }, [breakHour]);
+  /** Collect dropdown options from the data we already have on hand. */
+  const { breakHourOptions, shiftOptions } = useMemo(() => {
+    const hours = new Set<number>();
+    const shifts = new Set<string>();
+    for (const row of data?.schedules ?? []) {
+      for (const shift of Object.values(row.shifts) as any[]) {
+        if (shift?.isOff) shifts.add("OFF");
+        else if (shift?.start && shift?.end) shifts.add(`${shift.start}-${shift.end}`);
+        const breaks = readBreaks(shift);
+        for (const b of breaks) {
+          const h = Number(b.start.split(":")[0]);
+          if (!isNaN(h)) hours.add(h);
+        }
+      }
+    }
+    return {
+      breakHourOptions: Array.from(hours).sort((a, b) => a - b),
+      shiftOptions: Array.from(shifts).sort(),
+    };
+  }, [data]);
 
   const filteredAgents = useMemo(() => {
     const list = data?.agents ?? [];
@@ -178,18 +240,29 @@ export default function SchedulePage() {
       a.nameAr.toLowerCase().includes(s) ||
       a.nameEn.toLowerCase().includes(s)) : list;
     // Break-hour filter: keep agents who have at least one break starting at that hour.
-    if (breakHourInt !== null) {
+    if (breakHour !== "_all") {
+      const h = Number(breakHour);
+      out = out.filter((a) => {
+        const row = scheduleByAgent.get(a.id);
+        if (!row) return false;
+        return Object.values(row.shifts).some((shift: any) =>
+          readBreaks(shift).some((b) => Number(b.start.split(":")[0]) === h));
+      });
+    }
+    // Shift filter: keep agents whose any day matches the picked shift (or "OFF").
+    if (shiftFilter !== "_all") {
       out = out.filter((a) => {
         const row = scheduleByAgent.get(a.id);
         if (!row) return false;
         return Object.values(row.shifts).some((shift: any) => {
-          const breaks = readBreaks(shift);
-          return breaks.some((b) => Number(b.start.split(":")[0]) === breakHourInt);
+          if (shiftFilter === "OFF") return !!shift?.isOff;
+          if (!shift?.start || !shift?.end) return false;
+          return `${shift.start}-${shift.end}` === shiftFilter;
         });
       });
     }
     return out;
-  }, [data, search, breakHourInt, scheduleByAgent]);
+  }, [data, search, breakHour, shiftFilter, scheduleByAgent]);
 
   const save = useApiMutation(
     ({ agentId, shifts }: { agentId: number; shifts: Record<string, ShiftDay> }) =>
@@ -358,15 +431,27 @@ export default function SchedulePage() {
                 data-testid="input-schedule-search"
               />
             </div>
-            <div className="max-w-[200px]">
-              <Input
-                placeholder={t("schBreakFilter")}
-                title={t("schBreakFilterHint")}
-                value={breakHour}
-                onChange={(e) => setBreakHour(e.target.value)}
-                dir="ltr"
-                data-testid="input-break-filter"
-              />
+            <div className="w-44">
+              <Select value={breakHour} onValueChange={setBreakHour}>
+                <SelectTrigger data-testid="filter-break-hour"><SelectValue placeholder={t("schBreakFilter")} /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_all">{t("schBreakFilter")} — {t("all")}</SelectItem>
+                  {breakHourOptions.map((h) => (
+                    <SelectItem key={h} value={String(h)} dir="ltr">{String(h).padStart(2, "0")}:00</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-44">
+              <Select value={shiftFilter} onValueChange={setShiftFilter}>
+                <SelectTrigger data-testid="filter-shift"><SelectValue placeholder={t("schShiftFilter")} /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_all">{t("schShiftFilter")} — {t("all")}</SelectItem>
+                  {shiftOptions.map((s) => (
+                    <SelectItem key={s} value={s} dir="ltr">{s === "OFF" ? t("schDayOff") : s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -400,36 +485,28 @@ export default function SchedulePage() {
                           <div>{lang === "ar" ? a.nameAr : a.nameEn}</div>
                           <div className="text-[10px] text-muted-foreground" dir="ltr">{a.employeeId}</div>
                         </td>
-                        {DAY_KEYS.map((d) => {
+                        {DAY_KEYS.map((d, dayIndex) => {
                           const shift = weekShifts[d.key] ?? {};
                           const breaks = readBreaks(shift);
                           const filled = shift.isOff || shift.start;
+                          const cellDate = addDays(weekStart, dayIndex);
+                          const attStatus = attendanceMap.get(`${a.id}|${cellDate}`);
                           return (
                             <td key={d.key} className="px-2 py-2 text-center">
-                              <button
-                                type="button"
-                                disabled={!canManage}
-                                onClick={() => setEditing({ agent: a, dayKey: d.key, shift, scheduleId: row?.id ?? null, weekShifts })}
-                                className={`w-full rounded-lg px-2 py-2 text-xs border ${
-                                  filled ? "bg-primary/10 border-primary/30" : "bg-secondary/20 border-border/40 text-muted-foreground"
-                                } ${canManage ? "hover:bg-primary/15 cursor-pointer" : "cursor-default"}`}
-                                data-testid={`shift-${a.id}-${d.key}`}
-                              >
-                                {shift.isOff ? (
-                                  <Badge variant="secondary" className="text-[10px]">{t("schDayOff")}</Badge>
-                                ) : shift.start || shift.end ? (
-                                  <div className="space-y-0.5">
-                                    <div dir="ltr">{formatRange(shift)}</div>
-                                    {breaks.length > 0 && (
-                                      <div className="text-[10px] text-muted-foreground" dir="ltr">
-                                        {breaks.map((b) => `${b.start}-${b.end}`).join(", ")}
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <span>—</span>
-                                )}
-                              </button>
+                              <ScheduleCell
+                                agent={a}
+                                dayKey={d.key}
+                                shift={shift}
+                                breaks={breaks}
+                                filled={!!filled}
+                                date={cellDate}
+                                attStatus={attStatus}
+                                canManage={canManage}
+                                canRecord={canRecordAttendance}
+                                onEdit={() => setEditing({ agent: a, dayKey: d.key, shift, scheduleId: row?.id ?? null, weekShifts })}
+                                onMarkAttendance={(status: string) => recordAttendance.mutate({ agentId: a.id, date: cellDate, status })}
+                                t={t}
+                              />
                             </td>
                           );
                         })}
@@ -885,6 +962,79 @@ function SwapList({ items, role, refetch, t, lang, dir, myAgentId }: any) {
       })}
     </div>
   );
+}
+
+// ─── Day cell on the grid ───────────────────────────────────────────────────
+// WFM (canManage) clicks → opens shift editor.
+// Supervisor (canRecord only) clicks → opens attendance dropdown for the date.
+
+function ScheduleCell({ agent, dayKey, shift, breaks, filled, date, attStatus, canManage, canRecord, onEdit, onMarkAttendance, t }: any) {
+  const interactive = canManage || canRecord;
+  const cellContent = shift.isOff ? (
+    <Badge variant="secondary" className="text-[10px]">{t("schDayOff")}</Badge>
+  ) : shift.start || shift.end ? (
+    <div className="space-y-0.5">
+      <div dir="ltr">{shift.start} – {shift.end}</div>
+      {breaks.length > 0 && (
+        <div className="text-[10px] text-muted-foreground" dir="ltr">
+          {breaks.map((b: any) => `${b.start}-${b.end}`).join(", ")}
+        </div>
+      )}
+    </div>
+  ) : (
+    <span>—</span>
+  );
+
+  const baseClass = `w-full rounded-lg px-2 py-2 text-xs border ${
+    filled ? "bg-primary/10 border-primary/30" : "bg-secondary/20 border-border/40 text-muted-foreground"
+  } ${interactive ? "hover:bg-primary/15 cursor-pointer" : "cursor-default"}`;
+
+  // The little attendance dot in the corner of the cell.
+  const attColor = attStatus === "present" ? "bg-emerald-500"
+                 : attStatus === "late"    ? "bg-amber-500"
+                 : attStatus === "absent"  ? "bg-red-500"
+                 : "";
+  const cellInner = (
+    <div className="relative">
+      {attColor && <span className={`absolute -top-1 -end-1 w-2.5 h-2.5 rounded-full ${attColor} ring-2 ring-card`} />}
+      {cellContent}
+    </div>
+  );
+
+  if (canManage) {
+    return (
+      <button type="button" onClick={onEdit} className={baseClass} data-testid={`shift-${agent.id}-${dayKey}`}>
+        {cellInner}
+      </button>
+    );
+  }
+  if (canRecord) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button type="button" className={baseClass} data-testid={`shift-${agent.id}-${dayKey}`}>
+            {cellInner}
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="center" className="w-44">
+          <div className="px-2 py-1 text-[10px] text-muted-foreground font-bold uppercase">{t("schMarkAttendance")}</div>
+          <DropdownMenuItem onClick={() => onMarkAttendance("present")} className={attStatus === "present" ? "bg-emerald-500/10 font-bold" : ""}>
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block me-2" />
+            {t("attStatusPresent")}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onMarkAttendance("late")} className={attStatus === "late" ? "bg-amber-500/10 font-bold" : ""}>
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block me-2" />
+            {t("attStatusLate")}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onMarkAttendance("absent")} className={attStatus === "absent" ? "bg-red-500/10 font-bold" : ""}>
+            <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block me-2" />
+            {t("attStatusAbsent")}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
+  return <div className={baseClass}>{cellInner}</div>;
 }
 
 // ─── Attendance panel ───────────────────────────────────────────────────────
