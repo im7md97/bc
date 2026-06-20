@@ -75,8 +75,8 @@ export function registerAttendanceRoutes(app: Express) {
       }
       const [agent] = await db.select().from(agents).where(eq(agents.id, Number(agentId)));
       if (!agent) return sendError(res, 400, "invalid_agent", "الوكيل غير موجود", "Agent not found");
-      const managesAll = grantsOf(req).has("agent.list_all");
-      if (!managesAll && agent.supervisorUserId !== me.id) {
+      const recordsAll = grantsOf(req).has("attendance.view_all") || grantsOf(req).has("agent.list_all");
+      if (!recordsAll && agent.supervisorUserId !== me.id) {
         return sendError(res, 403, "forbidden", "هذا الوكيل ليس ضمن فريقك", "Not in your team");
       }
       const [existing] = await db.select().from(attendance).where(and(
@@ -114,7 +114,7 @@ export function registerAttendanceRoutes(app: Express) {
       if (!date || !Array.isArray(rows)) {
         return sendError(res, 400, "missing_fields", "التاريخ والصفوف مطلوبة", "date and rows are required");
       }
-      const managesAll = grantsOf(req).has("agent.list_all");
+      const recordsAll = grantsOf(req).has("attendance.view_all") || grantsOf(req).has("agent.list_all");
       const myAgents = await db.select().from(agents);
       const agentById = new Map(myAgents.map((a) => [a.id, a]));
       let saved = 0;
@@ -123,7 +123,7 @@ export function registerAttendanceRoutes(app: Express) {
         if (!agentId || !isStatus(r?.status)) continue;
         const agent = agentById.get(agentId);
         if (!agent) continue;
-        if (!managesAll && agent.supervisorUserId !== me.id) continue;
+        if (!recordsAll && agent.supervisorUserId !== me.id) continue;
         const [existing] = await db.select().from(attendance).where(and(
           eq(attendance.agentId, agentId),
           eq(attendance.date, String(date)),

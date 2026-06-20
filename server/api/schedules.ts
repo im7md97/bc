@@ -16,7 +16,7 @@ import { notifyUser, notifyRole } from "../notify";
 import type { SessionUser } from "../auth";
 
 const SCHED_SCOPE = {
-  all: "schedule.manage",
+  all: "schedule.view_all",   // separate from manage — read-only "see all"
   project: "schedule.view_project",
   team: "schedule.view_team",
   own: "schedule.view_own",
