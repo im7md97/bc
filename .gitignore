@@ -9,3 +9,4 @@ vite.config.ts.*
 
 .pgdata/
 .pm2/
+db-test.log
