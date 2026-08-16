@@ -37,6 +37,12 @@ function toSessionUser(u: typeof users.$inferSelect): SessionUser {
 }
 
 export function setupAuth(app: Express) {
+  // Behind Railway / any HTTPS reverse proxy, Express must trust the proxy
+  // headers so req.secure is true and secure cookies get set/sent.
+  if (process.env.NODE_ENV === "production") {
+    app.set("trust proxy", 1);
+  }
+
   app.use(
     session({
       secret: process.env.SESSION_SECRET || "quality-portal-secret-key",
