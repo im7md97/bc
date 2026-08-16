@@ -8,67 +8,67 @@
   :root {
     --font-sans: 'Cairo', sans-serif;
 
-    /* Clean, professional color palette - Indigo / Slate based */
-    --background: 210 40% 98%; /* Light slate background */
-    --foreground: 222 47% 11%;
-    
+    /* Sky-blue palette — bright, clean, professional. */
+    --background: 200 60% 98%;                 /* very light sky */
+    --foreground: 210 60% 12%;                 /* deep navy ink */
+
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    
+    --card-foreground: 210 60% 12%;
+
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    
-    --primary: 236 63% 53%; /* Premium Indigo */
-    --primary-foreground: 210 40% 98%;
-    
-    --secondary: 214 32% 91%;
-    --secondary-foreground: 222 47% 11%;
-    
-    --muted: 214 32% 91%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    
-    --accent: 214 32% 91%;
-    --accent-foreground: 222 47% 11%;
-    
+    --popover-foreground: 210 60% 12%;
+
+    --primary: 200 90% 45%;                    /* sky blue */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 200 40% 94%;                  /* very pale sky */
+    --secondary-foreground: 210 60% 12%;
+
+    --muted: 200 30% 95%;
+    --muted-foreground: 210 15% 40%;
+
+    --accent: 200 65% 88%;
+    --accent-foreground: 210 60% 12%;
+
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 236 63% 53%;
+    --border: 200 40% 88%;
+    --input: 200 40% 88%;
+    --ring: 200 90% 45%;
 
-    --radius: 0.75rem;
+    /* Ejar cards are generously rounded (16-20px). */
+    --radius: 1rem;
   }
 
   .dark {
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
-    
-    --card: 222 47% 11%; /* Actually let's use slightly elevated for dark card */
-    --card: 222 47% 15%;
-    --card-foreground: 210 40% 98%;
-    
-    --popover: 222 47% 11%;
-    --popover-foreground: 210 40% 98%;
-    
-    --primary: 236 63% 65%;
-    --primary-foreground: 222 47% 11%;
-    
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    
+    --background: 210 60% 8%;
+    --foreground: 200 40% 94%;
+
+    --card: 210 60% 12%;
+    --card-foreground: 200 40% 94%;
+
+    --popover: 210 60% 12%;
+    --popover-foreground: 200 40% 94%;
+
+    --primary: 200 90% 60%;
+    --primary-foreground: 210 60% 8%;
+
+    --secondary: 210 40% 18%;
+    --secondary-foreground: 200 40% 94%;
+
+    --muted: 210 40% 18%;
+    --muted-foreground: 200 15% 65%;
+
+    --accent: 210 40% 18%;
+    --accent-foreground: 200 40% 94%;
+
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 236 63% 65%;
+
+    --border: 210 40% 18%;
+    --input: 210 40% 18%;
+    --ring: 200 90% 60%;
   }
 }
 
