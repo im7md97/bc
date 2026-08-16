@@ -78,9 +78,11 @@ export async function seedCore(): Promise<{ adminPassword?: string }> {
   `);
 
   // 1. Default admin — one and only one account on first run.
-  const existingUsers = await db.select({ id: users.id }).from(users).limit(1);
-  if (existingUsers.length === 0) {
-    const password = process.env.ADMIN_DEFAULT_PASSWORD || "Qc!Portal_2026_Admin";
+  //    If ADMIN_RESET_PASSWORD=1 is set, the password is force-reset on every
+  //    boot so a locked-out operator can log back in. Unset it after login.
+  const existingAdmin = await db.select().from(users).where(eq(users.username, DEFAULT_ADMIN_USERNAME)).limit(1);
+  const password = process.env.ADMIN_DEFAULT_PASSWORD || "Qc!Portal_2026_Admin";
+  if (existingAdmin.length === 0) {
     await db.insert(users).values({
       username: DEFAULT_ADMIN_USERNAME,
       email: "admin@quality.portal",
@@ -96,6 +98,16 @@ export async function seedCore(): Promise<{ adminPassword?: string }> {
     console.log(`   username: ${DEFAULT_ADMIN_USERNAME}`);
     console.log(`   password: ${password}`);
     console.log("   (password change is forced on first login)");
+    console.log("─".repeat(60));
+  } else if (process.env.ADMIN_RESET_PASSWORD === "1") {
+    await db.update(users)
+      .set({ passwordHash: hashPassword(password), forcePasswordChange: true })
+      .where(eq(users.username, DEFAULT_ADMIN_USERNAME));
+    console.log("─".repeat(60));
+    console.log("🔑 Admin password RESET (ADMIN_RESET_PASSWORD=1):");
+    console.log(`   username: ${DEFAULT_ADMIN_USERNAME}`);
+    console.log(`   password: ${password}`);
+    console.log("   ⚠️  Remove the ADMIN_RESET_PASSWORD env var after logging in.");
     console.log("─".repeat(60));
   }
 
