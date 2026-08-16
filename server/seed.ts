@@ -110,7 +110,9 @@ export async function seedCore(): Promise<{ adminPassword?: string }> {
     }
   }
   if (toInsert.length > 0) {
-    await db.insert(permissionGrants).values(toInsert);
+    // Safety net: onConflictDoNothing() protects against races between the
+    // preceding SELECT and INSERT (parallel deploys, retried containers…).
+    await db.insert(permissionGrants).values(toInsert).onConflictDoNothing();
     console.log(`✅ Seeded ${toInsert.length} permission grants`);
   }
 
@@ -121,7 +123,7 @@ export async function seedCore(): Promise<{ adminPassword?: string }> {
   if (missingFlags.length > 0) {
     await db.insert(featureFlags).values(
       missingFlags.map((f) => ({ key: f.key, labelAr: f.labelAr, labelEn: f.labelEn, isEnabled: true })),
-    );
+    ).onConflictDoNothing();
     console.log(`✅ Seeded ${missingFlags.length} feature flags`);
   }
 
