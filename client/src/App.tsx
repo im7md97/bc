@@ -23,6 +23,7 @@ import QcDashboardPage from "./pages/QcDashboard";
 import QcNewEntryPage from "./pages/QcNewEntry";
 import { useAuth, can, featureOn } from "@/hooks/use-auth";
 import { LanguageProvider } from "@/contexts/LanguageContext";
+import { AnasWidget } from "@/components/anas/AnasWidget";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -133,6 +134,7 @@ export default function App() {
         <TooltipProvider>
           <Router />
           <Toaster />
+          <AnasWidget />
         </TooltipProvider>
       </QueryClientProvider>
     </LanguageProvider>

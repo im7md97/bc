@@ -7,6 +7,14 @@ vite.config.ts.*
 .local/
 .env
 
+railway-migration.sql
+
 .pgdata/
 .pm2/
 db-test.log
+
+# Junk
+*.zip
+Manual-Data-Entry/
+.replit
+ecosystem.config.cjs

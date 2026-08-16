@@ -15,6 +15,8 @@ import { registerScheduleRoutes } from "./api/schedules";
 import { registerDashboardRoutes } from "./api/dashboard";
 import { registerProfileRoutes } from "./api/profile";
 import { registerAttendanceRoutes } from "./api/attendance";
+import { registerDashboardV2Routes } from "./api/dashboard-v2";
+import { registerAnasRoutes } from "./api/anas";
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   setupAuth(app);
@@ -34,6 +36,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   registerDashboardRoutes(app);
   registerProfileRoutes(app);
   registerAttendanceRoutes(app);
+  registerDashboardV2Routes(app);
+  registerAnasRoutes(app);
 
   await seedCore();
   return httpServer;

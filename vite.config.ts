@@ -19,6 +19,11 @@ export default defineConfig({
         ]
       : []),
   ],
+  define: {
+    // react-grid-layout v2 reads process.env.NODE_ENV at runtime — the
+    // browser has no `process`, so shim it here.
+    "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? "development"),
+  },
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),

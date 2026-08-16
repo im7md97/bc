@@ -1,10 +1,10 @@
-import { Sparkles, BarChart3, ListChecks, Clock } from "lucide-react";
+import { Sparkles, BarChart3, ListChecks, Clock, Type, Square, Image as ImageIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useApi } from "@/hooks/use-api";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { formatMetric, formatHms, type MetricDef } from "@/lib/duration";
-import type { CustomWidget } from "@shared/dashboard";
+import type { CustomWidget, TextSize, TextAlign } from "@shared/dashboard";
 
 const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 function todayKey() { return DAY_KEYS[new Date().getDay()]; }
@@ -17,7 +17,15 @@ function weekStartFor(date: Date) {
 
 interface Props { widget: CustomWidget }
 
+// ─── Router ─────────────────────────────────────────────────────────────────
+
 export function CustomWidgetCard({ widget }: Props) {
+  // Free-form widgets skip the standard card chrome so they can render
+  // full-bleed backgrounds and custom typography.
+  if (widget.source === "text") return <TextBlock widget={widget} />;
+  if (widget.source === "shape") return <ShapeBlock widget={widget} />;
+  if (widget.source === "image") return <ImageBlock widget={widget} />;
+
   const { lang } = useLanguage();
   const title = lang === "ar" ? widget.titleAr : widget.titleEn;
   const Icon = widget.source === "apr" ? BarChart3
@@ -39,6 +47,90 @@ export function CustomWidgetCard({ widget }: Props) {
   );
 }
 
+// ─── Free-form blocks ───────────────────────────────────────────────────────
+
+const SIZE_CLASS: Record<TextSize, string> = {
+  sm: "text-sm",
+  md: "text-base",
+  lg: "text-xl",
+  xl: "text-3xl",
+  "2xl": "text-5xl",
+};
+
+const ALIGN_CLASS: Record<TextAlign, string> = {
+  start: "text-start",
+  center: "text-center",
+  end: "text-end",
+};
+
+function TextBlock({ widget }: Props) {
+  const { lang } = useLanguage();
+  const t = widget.text ?? { ar: "", en: "" };
+  const content = (lang === "ar" ? t.ar : t.en) || (lang === "ar" ? t.en : t.ar) || "";
+  const size = SIZE_CLASS[t.size ?? "lg"];
+  const align = ALIGN_CLASS[t.align ?? "start"];
+  const bold = t.bold !== false ? "font-bold" : "font-normal";
+  return (
+    <Card className="rounded-2xl h-full" style={{ backgroundColor: t.bg || undefined }}>
+      <CardContent className={`h-full flex items-center justify-center py-5 whitespace-pre-wrap ${align}`}>
+        <span
+          className={`${size} ${bold} leading-tight`}
+          style={{ color: t.color || undefined }}
+        >
+          {content || "…"}
+        </span>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ShapeBlock({ widget }: Props) {
+  const s = widget.shape ?? { kind: "rectangle", color: "#3b82f6" };
+  if (s.kind === "divider") {
+    return (
+      <div className="h-full flex items-center">
+        <div className="w-full h-1 rounded-full" style={{ backgroundColor: s.color }} />
+      </div>
+    );
+  }
+  if (s.kind === "circle") {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="aspect-square h-full max-h-32 rounded-full" style={{ backgroundColor: s.color }} />
+      </div>
+    );
+  }
+  return (
+    <div
+      className="h-full rounded-2xl min-h-24 border border-black/5"
+      style={{ backgroundColor: s.color }}
+    />
+  );
+}
+
+function ImageBlock({ widget }: Props) {
+  const img = widget.image;
+  if (!img?.url) {
+    return (
+      <div className="h-full min-h-24 rounded-2xl border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400">
+        <ImageIcon className="w-8 h-8" />
+      </div>
+    );
+  }
+  return (
+    <div className="h-full min-h-24 rounded-2xl overflow-hidden bg-slate-100">
+      <img
+        src={img.url}
+        alt={img.alt ?? ""}
+        className={`w-full h-full ${img.fit === "cover" ? "object-cover" : "object-contain"}`}
+        loading="lazy"
+      />
+    </div>
+  );
+}
+
+// ─── Data-source blocks (unchanged) ─────────────────────────────────────────
+
 function BigKpi({ value, hint }: { value: string; hint?: string }) {
   return (
     <div>
@@ -58,7 +150,6 @@ function AprValue({ widget }: Props) {
     const row = data?.rows?.[0];
     return <BigKpi value={formatMetric(def, row?.metrics?.[widget.aprMetric])} />;
   }
-  // average across visible rows
   const nums = (data?.rows ?? [])
     .map((r) => Number(r.metrics?.[widget.aprMetric!]))
     .filter((n) => !isNaN(n));
@@ -68,7 +159,6 @@ function AprValue({ widget }: Props) {
 }
 
 function QcValue({ widget }: Props) {
-  const { t } = useLanguage();
   const now = new Date();
   const qs = widget.qcPeriod === "all" ? "" : `?year=${now.getFullYear()}&month=${now.getMonth() + 1}`;
   const { data, isLoading } = useApi<any>(`/api/qc/stats${qs}`,

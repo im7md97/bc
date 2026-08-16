@@ -23,9 +23,16 @@ export interface PinnedWidget {
   size?: WidgetSize;
 }
 
-export type CustomWidgetSource = "apr" | "qc" | "schedule";
+export type CustomWidgetSource =
+  | "apr" | "qc" | "schedule"           // data-driven KPIs
+  | "text" | "shape" | "image";         // free-form building blocks
 
-/** Settings the user picks when building a custom KPI widget. */
+export type TextAlign = "start" | "center" | "end";
+export type TextSize = "sm" | "md" | "lg" | "xl" | "2xl";
+export type ShapeKind = "rectangle" | "circle" | "divider";
+export type ImageFit = "contain" | "cover";
+
+/** Settings the user picks when building a custom widget. */
 export interface CustomWidget {
   id: string;
   titleAr: string;
@@ -40,6 +47,27 @@ export interface CustomWidget {
   qcPeriod?: "current_month" | "all";
   // Schedule: pick what to show
   scheduleMetric?: "today_shift" | "today_break" | "week_offs" | "week_working_days";
+  // Text widget: free note / heading with colour & alignment
+  text?: {
+    ar: string;
+    en: string;
+    color?: string;      // hex — the text colour
+    bg?: string;         // hex — optional background
+    align?: TextAlign;
+    size?: TextSize;
+    bold?: boolean;
+  };
+  // Shape widget: coloured block for visual sectioning
+  shape?: {
+    kind: ShapeKind;
+    color: string;       // hex
+  };
+  // Image widget: external URL
+  image?: {
+    url: string;
+    alt?: string;
+    fit?: ImageFit;
+  };
 }
 
 export interface DashboardState {
@@ -55,11 +83,15 @@ export const SIZE_TO_COL: Record<WidgetSize, string> = {
   xl: "lg:col-span-6",
 };
 
-/** Required permission for each custom-widget source. */
+/** Required permission for each custom-widget source. Free-form widgets
+ *  (text / shape / image) are available to anyone signed in. */
 export const CUSTOM_SOURCE_PERMS: Record<CustomWidgetSource, string[]> = {
   apr: ["apr.view_own", "apr.view_team", "apr.view_project", "apr.view_all"],
   qc:  ["qc.view_own", "qc.evaluate", "qc.approve", "qc.approve_team"],
   schedule: ["schedule.view_own", "schedule.view_team", "schedule.view_project", "schedule.manage"],
+  text:  ["notifications.view_own"],  // any authenticated user
+  shape: ["notifications.view_own"],
+  image: ["notifications.view_own"],
 };
 
 export const DASHBOARD_WIDGETS: DashboardWidgetDef[] = [

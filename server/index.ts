@@ -4,6 +4,37 @@ import { createServer } from "http";
 import fs from "fs";
 import path from "path";
 
+// ─── Fail fast + clearly if a required env var is missing ────────────────
+// Prints a plain-text banner Railway will show in Deploy Logs so we never
+// have to hunt for the cause of a start-up crash again.
+(function assertEnv() {
+  const required = ["DATABASE_URL", "SESSION_SECRET"];
+  const missing = required.filter((k) => !process.env[k] || String(process.env[k]).trim() === "");
+  if (missing.length) {
+    console.error("\n════════════════════════════════════════════════");
+    console.error("[bc] STARTUP FAILED — missing env vars:");
+    for (const k of missing) console.error(`   • ${k}`);
+    console.error("════════════════════════════════════════════════\n");
+    process.exit(1);
+  }
+  const dbUrl = String(process.env.DATABASE_URL);
+  if (/localhost|127\.0\.0\.1/.test(dbUrl) && process.env.NODE_ENV === "production") {
+    console.error("\n════════════════════════════════════════════════");
+    console.error("[bc] DATABASE_URL points at localhost in production!");
+    console.error("     Attach the Postgres plugin and reference its DATABASE_URL.");
+    console.error("════════════════════════════════════════════════\n");
+    process.exit(1);
+  }
+  console.log(`[bc] env ok · NODE_ENV=${process.env.NODE_ENV} · DB host=${dbUrl.split("@")[1]?.split("/")[0] ?? "?"}`);
+})();
+
+process.on("uncaughtException", (err) => {
+  console.error("[bc] uncaughtException:", err);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[bc] unhandledRejection:", reason);
+});
+
 function serveStatic(app: express.Express) {
   const distPath = path.resolve(__dirname, "public");
   if (!fs.existsSync(distPath)) throw new Error(`Could not find the build directory: ${distPath}`);
