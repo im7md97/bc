@@ -99,41 +99,43 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  await registerRoutes(httpServer, app);
+  try {
+    console.log("[bc.boot] step 1/4 · registering routes");
+    await registerRoutes(httpServer, app);
+    console.log("[bc.boot] step 2/4 · routes registered");
 
-  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+    app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
+      const status = err.status || err.statusCode || 500;
+      const message = err.message || "Internal Server Error";
+      console.error("Internal Server Error:", err);
+      if (res.headersSent) return next(err);
+      return res.status(status).json({ message });
+    });
 
-    console.error("Internal Server Error:", err);
-
-    if (res.headersSent) {
-      return next(err);
+    if (process.env.NODE_ENV === "production") {
+      console.log("[bc.boot] step 3/4 · serving static from dist/public");
+      serveStatic(app);
+    } else {
+      const { setupVite } = await import("./vite");
+      await setupVite(httpServer, app);
     }
 
-    return res.status(status).json({ message });
-  });
-
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (process.env.NODE_ENV === "production") {
-    serveStatic(app);
-  } else {
-    const { setupVite } = await import("./vite");
-    await setupVite(httpServer, app);
+    const port = parseInt(process.env.PORT || "5000", 10);
+    // Bind to 0.0.0.0 on Linux so Railway can reach us. reusePort disabled
+    // in production because Railway's proxy connects once.
+    const listenOpts: any = process.platform === "win32"
+      ? { port, host: "127.0.0.1" }
+      : { port, host: "0.0.0.0" };
+    console.log(`[bc.boot] step 4/4 · listening on ${listenOpts.host}:${port}`);
+    httpServer.listen(listenOpts, () => {
+      console.log(`[bc.boot] ✓ READY — http://${listenOpts.host}:${port}`);
+      log(`serving on port ${port}`);
+    });
+    httpServer.on("error", (err) => {
+      console.error("[bc.boot] listen error:", err);
+    });
+  } catch (err) {
+    console.error("[bc.boot] FATAL during startup:", err);
+    process.exit(1);
   }
-
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || "5000", 10);
-  // reusePort isn't supported on Windows — listen with just port/host.
-  const listenOpts: any = process.platform === "win32"
-    ? { port, host: "127.0.0.1" }
-    : { port, host: "0.0.0.0", reusePort: true };
-  httpServer.listen(listenOpts, () => {
-    log(`serving on port ${port}`);
-  });
 })();
