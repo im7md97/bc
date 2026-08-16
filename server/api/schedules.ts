@@ -585,23 +585,92 @@ export function registerScheduleRoutes(app: Express) {
           dayKey: allDays[0],              // back-compat: first day
           dayKeys: allDays,                 // full list
           requesterComment: comment ? String(comment) : null,
-          status: "pending_supervisor",
+          status: "pending_target_agent",   // NEW: target agent must accept first
         }).returning();
 
-        if (requester.supervisorUserId) {
+        // Notify the TARGET agent — they must accept before supervisor sees it.
+        if (target.userId) {
           await notifyUser({
-            userId: requester.supervisorUserId,
-            type: "swap_request",
-            titleAr: "طلب تبديل جدول جديد",
-            titleEn: "New shift swap request",
-            bodyAr: `طلب من ${requester.nameAr} لتبديل ${allDays.join(", ")} مع ${target.nameAr}`,
-            bodyEn: `${requester.nameEn} requests swap on ${allDays.join(", ")} with ${target.nameEn}`,
+            userId: target.userId,
+            type: "swap_request_incoming",
+            titleAr: "طلب تبديل شفت من زميلك",
+            titleEn: "Incoming shift swap request",
+            bodyAr: `${requester.nameAr} يطلب تبديل ${allDays.join(", ")} — يحتاج موافقتك`,
+            bodyEn: `${requester.nameEn} requests swap on ${allDays.join(", ")} — needs your approval`,
             linkPath: "/schedule",
           });
         }
         res.status(201).json(created);
       } catch (err) {
         console.error("[schedules.swap_request]", err);
+        errInternal(res);
+      }
+    },
+  );
+
+  // Target-agent stage: the coworker must accept before it reaches supervisor.
+  //   accept → pending_supervisor, reject → cancelled
+  app.patch(
+    "/api/schedules/swap-requests/:id/target-response",
+    requireFeature("menu.schedule"),
+    async (req, res) => {
+      try {
+        const me = req.user as SessionUser;
+        const id = Number(req.params.id);
+        if (isNaN(id)) return errInvalidId(res);
+        const { action, comment } = req.body ?? {};
+        if (!["accept", "reject"].includes(action)) {
+          return sendError(res, 400, "invalid_action", "إجراء غير صالح", "Invalid action");
+        }
+        const [request] = await db.select().from(shiftSwapRequests).where(eq(shiftSwapRequests.id, id));
+        if (!request) return errNotFound(res);
+        if (request.status !== "pending_target_agent") {
+          return sendError(res, 409, "bad_state", "لا يمكن الرد الآن", "Cannot respond now");
+        }
+        // Only the target agent can respond.
+        const [target] = await db.select().from(agents).where(eq(agents.id, request.targetAgentId));
+        if (!target || target.userId !== me.id) {
+          return sendError(res, 403, "not_target", "هذا الطلب ليس لك", "Not your swap request");
+        }
+
+        const nextStatus = action === "accept" ? "pending_supervisor" : "cancelled";
+        await db.update(shiftSwapRequests).set({
+          status: nextStatus,
+          updatedAt: new Date(),
+        }).where(eq(shiftSwapRequests.id, id));
+
+        const [requester] = await db.select().from(agents).where(eq(agents.id, request.requesterAgentId));
+        // Notify requester of the target's decision.
+        if (requester?.userId) {
+          await notifyUser({
+            userId: requester.userId,
+            type: action === "accept" ? "swap_target_accepted" : "swap_target_rejected",
+            titleAr: action === "accept" ? "زميلك وافق على التبديل" : "زميلك رفض التبديل",
+            titleEn: action === "accept" ? "Your coworker accepted the swap" : "Your coworker rejected the swap",
+            bodyAr: action === "accept"
+              ? "تمّ الإرسال للمشرف للاعتماد"
+              : (comment ? String(comment) : "تم إغلاق الطلب"),
+            bodyEn: action === "accept"
+              ? "Sent to supervisor for approval"
+              : (comment ? String(comment) : "Request closed"),
+            linkPath: "/schedule",
+          });
+        }
+        // On accept, notify supervisor (was previously done at creation time).
+        if (action === "accept" && requester?.supervisorUserId) {
+          await notifyUser({
+            userId: requester.supervisorUserId,
+            type: "swap_request",
+            titleAr: "طلب تبديل جدول للاعتماد",
+            titleEn: "Shift swap for approval",
+            bodyAr: `${requester.nameAr} ↔ ${target.nameAr} — يحتاج مراجعتك`,
+            bodyEn: `${requester.nameEn} ↔ ${target.nameEn} — needs your review`,
+            linkPath: "/schedule",
+          });
+        }
+        res.json({ ok: true, status: nextStatus });
+      } catch (err) {
+        console.error("[schedules.swap_target_response]", err);
         errInternal(res);
       }
     },

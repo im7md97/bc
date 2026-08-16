@@ -30,6 +30,8 @@ import { useAuth, can } from "@/hooks/use-auth";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useToast } from "@/hooks/use-toast";
 import type { TranslationKey } from "@/lib/i18n";
+import { AgentMonthlyCalendar } from "@/components/schedule/AgentMonthlyCalendar";
+import { SupervisorScheduleCard } from "@/components/schedule/SupervisorScheduleCard";
 
 interface AgentSummary {
   id: number;
@@ -69,7 +71,7 @@ interface SwapRequest {
   weekStart: string;
   dayKey: string;
   dayKeys: string[] | null;
-  status: "pending_supervisor" | "pending_wfm" | "approved" | "rejected" | "cancelled";
+  status: "pending_target_agent" | "pending_supervisor" | "pending_wfm" | "approved" | "rejected" | "cancelled";
   requesterComment: string | null;
   supervisorComment: string | null;
   wfmComment: string | null;
@@ -292,11 +294,15 @@ export default function SchedulePage() {
         title={t("schMyTitle")}
         actions={<WeekNav weekStart={weekStart} setWeekStart={setWeekStart} t={t} dir={dir} />}
       >
-        <Tabs defaultValue="week">
+        <Tabs defaultValue="month">
           <TabsList>
+            <TabsTrigger value="month">{lang === "ar" ? "شهري" : "Monthly"}</TabsTrigger>
             <TabsTrigger value="week">{t("schMyTitle")}</TabsTrigger>
             {canRequestSwap && <TabsTrigger value="swap">{t("schSwapTab")}</TabsTrigger>}
           </TabsList>
+          <TabsContent value="month">
+            <AgentMonthlyCalendar />
+          </TabsContent>
           <TabsContent value="week">
             {isLoading && <Skeleton className="h-72 rounded-2xl" />}
             {!isLoading && !myRow && (
@@ -399,6 +405,11 @@ export default function SchedulePage() {
         </>
       }
     >
+      {me?.role === "supervisor" && (
+        <div className="mb-4">
+          <SupervisorScheduleCard weekStart={weekStart} />
+        </div>
+      )}
       <Tabs defaultValue="week">
         <TabsList>
           <TabsTrigger value="week">{t("schTitle")}</TabsTrigger>
@@ -877,6 +888,7 @@ function SwapDialog({ dayKey, weekStart, onClose, onSuccess, t, lang, dir }: any
 
 function swapStatusBadge(status: string, t: any) {
   const map: Record<string, { className: string; key: TranslationKey }> = {
+    pending_target_agent: { className: "bg-purple-500/10 text-purple-700 border-purple-300", key: "schSwapPendingTarget" },
     pending_supervisor: { className: "bg-amber-500/10 text-amber-700 border-amber-300", key: "schSwapPendingSup" },
     pending_wfm:        { className: "bg-blue-500/10 text-blue-700 border-blue-300",     key: "schSwapPendingWfm" },
     approved:           { className: "bg-emerald-500/10 text-emerald-700 border-emerald-300", key: "schSwapApproved" },
@@ -914,7 +926,9 @@ function SwapList({ items, role, refetch, t, lang, dir, myAgentId }: any) {
         const dayLabel: TranslationKey = dayLabels[0] ?? "schDaySun";
         const showSupActions = role === "supervisor" && r.status === "pending_supervisor";
         const showWfmActions = role === "wfm" && r.status === "pending_wfm";
-        const showCancel = role === "agent" && ["pending_supervisor", "pending_wfm"].includes(r.status);
+        const showCancel = role === "agent" && ["pending_target_agent", "pending_supervisor", "pending_wfm"].includes(r.status);
+        // Target-agent stage: only the target agent (not requester) can accept/reject.
+        const showTargetActions = role === "agent" && r.status === "pending_target_agent" && r.targetAgentId === myAgentId;
         return (
           <Card key={r.id} className="rounded-2xl">
             <CardContent className="pt-4 pb-4">
@@ -935,8 +949,20 @@ function SwapList({ items, role, refetch, t, lang, dir, myAgentId }: any) {
               {r.requesterComment && <p className="text-xs text-muted-foreground mb-2">"{r.requesterComment}"</p>}
               {r.supervisorComment && <p className="text-xs bg-secondary/30 rounded px-2 py-1 mb-2">{t("roleSupervisor")}: {r.supervisorComment}</p>}
               {r.wfmComment && <p className="text-xs bg-secondary/30 rounded px-2 py-1 mb-2">{t("roleWfm")}: {r.wfmComment}</p>}
-              {(showSupActions || showWfmActions || showCancel) && (
+              {(showSupActions || showWfmActions || showCancel || showTargetActions) && (
                 <div className="flex gap-2 mt-2">
+                  {showTargetActions && (
+                    <>
+                      <Button size="sm" variant="default" className="gap-1"
+                        onClick={() => decide.mutate({ id: r.id, endpoint: "target-response", action: "accept" })}>
+                        <Check className="w-3.5 h-3.5" /> {t("schSwapAccept") ?? "قبول"}
+                      </Button>
+                      <Button size="sm" variant="outline" className="gap-1 text-red-600"
+                        onClick={() => decide.mutate({ id: r.id, endpoint: "target-response", action: "reject" })}>
+                        <X className="w-3.5 h-3.5" /> {t("schSwapReject")}
+                      </Button>
+                    </>
+                  )}
                   {(showSupActions || showWfmActions) && (
                     <>
                       <Button size="sm" variant="default" className="gap-1"

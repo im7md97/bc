@@ -65,6 +65,12 @@ export const PERMISSION_DEFS: { key: string; labelAr: string; labelEn: string; g
   { key: "qc.approve_team",        labelAr: "اعتماد تقييمات فريقه",            labelEn: "Approve team QC evaluations",     group: "qc" },
   { key: "qc.view_own",            labelAr: "عرض تقييماته المعتمدة",           labelEn: "View own approved evaluations",   group: "qc" },
 
+  { key: "coaching.create",        labelAr: "إنشاء جلسة تدريبية",              labelEn: "Create coaching session",         group: "coaching" },
+  { key: "coaching.view_all",      labelAr: "عرض كل الجلسات التدريبية",         labelEn: "View all coaching sessions",      group: "coaching" },
+  { key: "coaching.view_project",  labelAr: "عرض جلسات المشروع",                labelEn: "View project coaching sessions",  group: "coaching" },
+  { key: "coaching.view_team",     labelAr: "عرض جلسات فريقه",                 labelEn: "View team coaching sessions",     group: "coaching" },
+  { key: "coaching.view_own",      labelAr: "عرض جلساته الخاصة",                labelEn: "View own coaching sessions",      group: "coaching" },
+
   { key: "notifications.view_own", labelAr: "عرض إشعاراته",                   labelEn: "View own notifications",          group: "system" },
   { key: "feature_flag.toggle",    labelAr: "إدارة مفاتيح الميزات",            labelEn: "Toggle feature flags",            group: "system" },
   { key: "permission.grant",       labelAr: "إدارة الصلاحيات",                labelEn: "Grant permissions",               group: "system" },
@@ -107,10 +113,12 @@ export const DEFAULT_GRANTS: Record<Role, string[]> = {
     "schedule.view_all", "schedule.view_team", "schedule.swap_review_team",
     "attendance.record", "attendance.view_all", "attendance.view_team",
     "qc.approve_team",
+    "coaching.create", "coaching.view_team",
     "notifications.view_own",
   ],
   quality: [
     "qc.evaluate",
+    "coaching.create", "coaching.view_team",
     "notifications.view_own",
   ],
   agent: [
@@ -119,6 +127,7 @@ export const DEFAULT_GRANTS: Record<Role, string[]> = {
     "schedule.view_own", "schedule.swap_request",
     "attendance.view_own",
     "qc.view_own",
+    "coaching.view_own",
     "notifications.view_own",
   ],
 };
@@ -136,4 +145,5 @@ export const DEFAULT_FEATURE_FLAGS: { key: string; labelAr: string; labelEn: str
   { key: "scorecard.agent_comment",  labelAr: "تعليق الوكيل على البطاقة",   labelEn: "Agent comment on score card" },
   { key: "apr.history",              labelAr: "سجل رفعات APR",             labelEn: "APR history" },
   { key: "apr.bulk_upload",          labelAr: "رفع APR بالجملة",           labelEn: "APR bulk upload" },
+  { key: "menu.coaching",            labelAr: "قائمة الجلسات التدريبية",   labelEn: "Coaching menu" },
 ];

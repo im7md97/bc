@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Users, FolderOpen, Headset, BarChart3, Upload, Star,
   Settings2, ShieldCheck, ClipboardCheck, FilePlus2, LogOut, Languages, KeyRound, Menu, CalendarClock,
-  ChevronDown, User,
+  ChevronDown, User, GraduationCap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,6 +37,9 @@ const NAV_GROUPS: NavGroup[] = [
         need: ["qc.evaluate", "qc.approve", "qc.approve_team", "qc.view_own"], feature: "menu.qc" },
       { path: "/qc/new-entry", labelKey: "navQcNew", icon: FilePlus2,
         need: ["qc.evaluate"], feature: "menu.qc" },
+      { path: "/coaching", labelKey: "navCoaching", icon: GraduationCap,
+        need: ["coaching.create", "coaching.view_all", "coaching.view_project", "coaching.view_team", "coaching.view_own"],
+        feature: "menu.coaching" },
     ],
   },
   {

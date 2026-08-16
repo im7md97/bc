@@ -21,6 +21,7 @@ import SuperAdminPage from "./pages/SuperAdmin";
 import SchedulePage from "./pages/Schedule";
 import QcDashboardPage from "./pages/QcDashboard";
 import QcNewEntryPage from "./pages/QcNewEntry";
+import CoachingPage from "./pages/Coaching";
 import { useAuth, can, featureOn } from "@/hooks/use-auth";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { AnasWidget } from "@/components/anas/AnasWidget";
@@ -119,6 +120,7 @@ function Router() {
 
       <Route path="/qc/new-entry" component={() => <Guard component={QcNewEntryPage} need={["qc.evaluate"]} feature="menu.qc" />} />
       <Route path="/qc/dashboard" component={() => <Guard component={QcDashboardPage} need={["qc.evaluate", "qc.approve", "qc.approve_team", "qc.view_own"]} feature="menu.qc" />} />
+      <Route path="/coaching" component={() => <Guard component={CoachingPage} need={["coaching.create", "coaching.view_all", "coaching.view_project", "coaching.view_team", "coaching.view_own"]} feature="menu.coaching" />} />
 
       <Route path="/super-admin" component={() => <Guard component={SuperAdminPage} need={["permission.grant", "feature_flag.toggle"]} />} />
 

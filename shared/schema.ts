@@ -343,6 +343,7 @@ export type InsertScheduleSettings = typeof scheduleSettings.$inferInsert;
 // ─── shift_swap_requests (agent → supervisor → WFM) ──────────────────────────
 
 export const SWAP_STATUSES = [
+  "pending_target_agent",
   "pending_supervisor",
   "pending_wfm",
   "approved",
@@ -419,3 +420,52 @@ export const insertQcEntrySchema = createInsertSchema(qcEntries).omit({
 });
 export type QcEntry = typeof qcEntries.$inferSelect;
 export type InsertQcEntry = z.infer<typeof insertQcEntrySchema>;
+
+// ─── coaching_sessions (supervisor → agent training records) ─────────────────
+
+export const COACHING_TYPES = ["side_by_side", "dsat", "qa"] as const;
+export type CoachingType = (typeof COACHING_TYPES)[number];
+
+export const COACHING_STATUSES = [
+  "pending_agent",   // supervisor saved → waiting on agent acknowledgment
+  "acknowledged",    // agent signed off
+  "completed",       // marked complete after deadline / target met
+  "cancelled",
+] as const;
+export type CoachingStatus = (typeof COACHING_STATUSES)[number];
+
+export const coachingSessions = pgTable("coaching_sessions", {
+  id: serial("id").primaryKey(),
+  agentId: integer("agent_id").notNull().references(() => agents.id),
+  supervisorUserId: integer("supervisor_user_id").notNull().references(() => users.id),
+  sessionType: varchar("session_type", { length: 20 }).notNull(),
+  status: varchar("status", { length: 30 }).notNull().default("pending_agent"),
+  // Body — free-text sections
+  positivePoints: text("positive_points"),        // نقاط إيجابية
+  mistakes: text("mistakes"),                     // الأخطاء
+  improvementPlan: text("improvement_plan"),      // خطة التحسين
+  targetMetric: text("target_metric"),            // ما الهدف المتوقع
+  deadline: text("deadline"),                     // ISO date YYYY-MM-DD
+  // Sign-off
+  agentAcknowledgedAt: timestamp("agent_acknowledged_at"),
+  agentComment: text("agent_comment"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+export type CoachingSession = typeof coachingSessions.$inferSelect;
+export type InsertCoachingSession = typeof coachingSessions.$inferInsert;
+
+// ─── supervisor_schedules (supervisor's own weekly on-duty roster) ───────────
+
+export const supervisorSchedules = pgTable("supervisor_schedules", {
+  id: serial("id").primaryKey(),
+  supervisorUserId: integer("supervisor_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  weekStart: text("week_start").notNull(),          // ISO date, Sunday
+  shiftsJson: text("shifts_json").notNull().default("{}"),  // same WeeklyShifts shape as agents
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => [unique().on(t.supervisorUserId, t.weekStart)]);
+
+export type SupervisorSchedule = typeof supervisorSchedules.$inferSelect;
+export type InsertSupervisorSchedule = typeof supervisorSchedules.$inferInsert;
