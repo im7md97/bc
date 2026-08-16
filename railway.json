@@ -6,7 +6,7 @@
   },
   "deploy": {
     "startCommand": "npm run release && npm start",
-    "healthcheckPath": "/api/auth/me",
+    "healthcheckPath": "/healthz",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 3

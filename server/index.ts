@@ -98,6 +98,12 @@ app.use((req, res, next) => {
   next();
 });
 
+// Cheap health endpoint mounted first so it always answers 200, even during
+// heavy boot work. Railway hits this to know we're alive.
+app.get("/healthz", (_req, res) => {
+  res.status(200).json({ status: "ok", ts: Date.now() });
+});
+
 (async () => {
   try {
     console.log("[bc.boot] step 1/4 · registering routes");
