@@ -10,7 +10,15 @@ import type { ChatCompletionMessageParam } from "openai/resources/chat/completio
 import { buildContext, findTool, toolsForOpenAI, type ToolContext } from "./tools";
 import type { SessionUser } from "../auth";
 
-const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+// Provider config — supports OpenAI or any OpenAI-compatible endpoint
+// (OpenRouter, Together, Groq, local vLLM, …).
+//
+//   OPENAI_BASE_URL   → e.g. https://openrouter.ai/api/v1  (leave blank for OpenAI direct)
+//   OPENAI_API_KEY    → provider key
+//   OPENAI_MODEL      → model id in that provider's format
+//                       (e.g. "openai/gpt-4o-mini" on OpenRouter)
+const BASE_URL = process.env.OPENAI_BASE_URL || undefined;
+const MODEL = process.env.OPENAI_MODEL ?? "openai/gpt-4o-mini";
 const MAX_ITERATIONS = 6;
 
 let clientCache: OpenAI | null = null;
@@ -18,7 +26,19 @@ function getClient(): OpenAI {
   if (clientCache) return clientCache;
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("openai_not_configured");
-  clientCache = new OpenAI({ apiKey });
+
+  // OpenRouter recommends identifying your app via these headers.
+  const defaultHeaders: Record<string, string> = {};
+  if (BASE_URL?.includes("openrouter.ai")) {
+    if (process.env.PUBLIC_URL) defaultHeaders["HTTP-Referer"] = process.env.PUBLIC_URL;
+    defaultHeaders["X-Title"] = "BC Portal — Anas";
+  }
+
+  clientCache = new OpenAI({
+    apiKey,
+    baseURL: BASE_URL,
+    defaultHeaders: Object.keys(defaultHeaders).length ? defaultHeaders : undefined,
+  });
   return clientCache;
 }
 
