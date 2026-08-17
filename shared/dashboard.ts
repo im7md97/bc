@@ -17,10 +17,15 @@ export interface DashboardWidgetDef {
 // ─── Pinned widget instance + custom widget config ───────────────────────────
 
 /** A single pin on the user's dashboard. key references a catalog widget or
- *  a custom widget (key starts with "custom:"). size overrides the default. */
+ *  a custom widget (key starts with "custom:"). size overrides the default.
+ *  x/y/w/h are grid-layout coordinates (12-col grid, ~80px rows). */
 export interface PinnedWidget {
   key: string;
   size?: WidgetSize;
+  x?: number;
+  y?: number;
+  w?: number;
+  h?: number;
 }
 
 export type CustomWidgetSource =

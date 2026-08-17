@@ -107,16 +107,6 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-40">
-      {/* ── Authority strip (Ejar-style top bar) ─────────────────────── */}
-      <div className="bg-primary/5 border-b border-primary/10 text-[11px]">
-        <div className="max-w-[1400px] mx-auto px-6 h-8 flex items-center gap-2 text-muted-foreground">
-          <span className="inline-block w-3.5 h-3.5 rounded-sm bg-primary" />
-          <span>{lang === "ar"
-            ? "بوابة الجودة والأداء — منصّة إدارة الجودة الرسمية"
-            : "Quality & Performance Portal — official quality management platform"}</span>
-        </div>
-      </div>
-
       <div className="bg-card border-b border-border/60">
         <div className="max-w-[1400px] mx-auto px-6 h-20 flex items-center gap-3">
         <Link href="/" className="font-extrabold text-primary text-xl whitespace-nowrap me-4 flex items-center gap-2.5">
