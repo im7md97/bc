@@ -294,53 +294,17 @@ export default function SchedulePage() {
         title={t("schMyTitle")}
         actions={<WeekNav weekStart={weekStart} setWeekStart={setWeekStart} t={t} dir={dir} />}
       >
-        <Tabs defaultValue="month">
+        <Tabs defaultValue="schedule">
           <TabsList>
-            <TabsTrigger value="month">{lang === "ar" ? "شهري" : "Monthly"}</TabsTrigger>
-            <TabsTrigger value="week">{t("schMyTitle")}</TabsTrigger>
+            <TabsTrigger value="schedule">{lang === "ar" ? "جدولي" : "My Schedule"}</TabsTrigger>
             {canRequestSwap && <TabsTrigger value="swap">{t("schSwapTab")}</TabsTrigger>}
           </TabsList>
-          <TabsContent value="month">
-            <AgentMonthlyCalendar />
-          </TabsContent>
-          <TabsContent value="week">
-            {isLoading && <Skeleton className="h-72 rounded-2xl" />}
-            {!isLoading && !myRow && (
-              <Card className="rounded-2xl"><CardContent className="py-16 text-center text-muted-foreground">{t("schEmpty")}</CardContent></Card>
-            )}
-            {myRow && (
-              <div className="grid grid-cols-1 sm:grid-cols-7 gap-2">
-                {DAY_KEYS.map((d, i) => {
-                  const shift = myRow.shifts[d.key] ?? {};
-                  const breaks = readBreaks(shift);
-                  return (
-                    <Card key={d.key} className="rounded-2xl">
-                      <CardContent className="pt-4 pb-4">
-                        <div className="text-xs text-muted-foreground mb-1" dir="ltr">{addDays(weekStart, i)}</div>
-                        <div className="font-bold mb-2">{t(d.labelKey)}</div>
-                        {shift.isOff && <Badge variant="secondary">{t("schDayOff")}</Badge>}
-                        {!shift.isOff && (
-                          <div className="space-y-1 text-sm" dir="ltr">
-                            <div>{formatRange(shift) || "—"}</div>
-                            {breaks.map((b, bi) => (
-                              <div key={bi} className="text-xs text-muted-foreground">
-                                {t("schBreaks")} {bi + 1}: {b.start} – {b.end}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {canRequestSwap && !shift.isOff && shift.start && (
-                          <Button size="sm" variant="ghost" className="mt-2 h-7 gap-1 text-xs"
-                            onClick={() => setSwapOpen({ dayKey: d.key })}>
-                            <Repeat2 className="w-3 h-3" /> {t("schSwapNew")}
-                          </Button>
-                        )}
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
+          <TabsContent value="schedule">
+            <AgentScheduleTabs
+              myRow={myRow} weekStart={weekStart} isLoading={isLoading}
+              canRequestSwap={canRequestSwap} setSwapOpen={setSwapOpen}
+              lang={lang} t={t}
+            />
           </TabsContent>
           {canRequestSwap && (
             <TabsContent value="swap">
@@ -590,6 +554,168 @@ export default function SchedulePage() {
         />
       )}
     </PageShell>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Agent schedule with Day / Week / Month toggle — one panel, three views.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function AgentScheduleTabs({ myRow, weekStart, isLoading, canRequestSwap, setSwapOpen, lang, t }: any) {
+  const [view, setView] = useState<"day" | "week" | "month">("week");
+
+  return (
+    <div className="space-y-4">
+      {/* Segmented pill toggle — on the right */}
+      <div className="flex justify-end">
+        <div className="inline-flex rounded-xl border bg-card p-1 shadow-sm">
+          {(["day", "week", "month"] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              className={
+                "px-4 py-1.5 rounded-lg text-sm font-medium transition " +
+                (view === v ? "bg-primary text-primary-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground")
+              }
+              data-testid={`sch-view-${v}`}
+            >
+              {lang === "ar"
+                ? (v === "day" ? "يومي" : v === "week" ? "أسبوعي" : "شهري")
+                : (v === "day" ? "Day" : v === "week" ? "Week" : "Month")}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Day view — today only */}
+      {view === "day" && <AgentDayCard myRow={myRow} weekStart={weekStart} canRequestSwap={canRequestSwap} setSwapOpen={setSwapOpen} lang={lang} t={t} />}
+
+      {/* Week view — the existing 7-column card row */}
+      {view === "week" && (
+        <>
+          {isLoading && <Skeleton className="h-72 rounded-2xl" />}
+          {!isLoading && !myRow && (
+            <Card className="rounded-2xl"><CardContent className="py-16 text-center text-muted-foreground">{t("schEmpty")}</CardContent></Card>
+          )}
+          {myRow && (
+            <div className="grid grid-cols-1 sm:grid-cols-7 gap-2">
+              {DAY_KEYS.map((d: any, i: number) => {
+                const shift = myRow.shifts[d.key] ?? {};
+                const breaks = readBreaks(shift);
+                return (
+                  <Card key={d.key} className="rounded-2xl">
+                    <CardContent className="pt-4 pb-4">
+                      <div className="text-xs text-muted-foreground mb-1" dir="ltr">{addDays(weekStart, i)}</div>
+                      <div className="font-bold mb-2">{t(d.labelKey)}</div>
+                      {shift.isOff && <Badge variant="secondary">{t("schDayOff")}</Badge>}
+                      {!shift.isOff && (
+                        <div className="space-y-1 text-sm" dir="ltr">
+                          <div>{formatRange(shift) || "—"}</div>
+                          {breaks.map((b: any, bi: number) => (
+                            <div key={bi} className="text-xs text-muted-foreground">
+                              {t("schBreaks")} {bi + 1}: {b.start} – {b.end}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {canRequestSwap && !shift.isOff && shift.start && (
+                        <Button size="sm" variant="ghost" className="mt-2 h-7 gap-1 text-xs"
+                          onClick={() => setSwapOpen({ dayKey: d.key })}>
+                          <Repeat2 className="w-3 h-3" /> {t("schSwapNew")}
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Month view — the calendar component we already ship. */}
+      {view === "month" && <AgentMonthlyCalendar />}
+    </div>
+  );
+}
+
+function AgentDayCard({ myRow, weekStart, canRequestSwap, setSwapOpen, lang, t }: any) {
+  const today = new Date();
+  const dayIndex = today.getDay(); // 0=Sun
+  const dayKey = DAY_KEYS[dayIndex]?.key;
+  const dayLabelKey = DAY_KEYS[dayIndex]?.labelKey;
+  const shift = myRow?.shifts?.[dayKey] ?? {};
+  const breaks = readBreaks(shift);
+
+  if (!myRow) {
+    return (
+      <Card className="rounded-2xl">
+        <CardContent className="py-16 text-center text-muted-foreground">{t("schEmpty")}</CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="rounded-2xl">
+      <CardContent className="p-6">
+        <div className="flex items-baseline justify-between mb-4">
+          <div>
+            <div className="text-xs text-muted-foreground" dir="ltr">
+              {today.toLocaleDateString(lang === "ar" ? "ar-SA-u-nu-latn" : "en-US", {
+                weekday: "long", year: "numeric", month: "long", day: "numeric",
+              })}
+            </div>
+            <h2 className="text-2xl font-bold mt-1">{t(dayLabelKey)}</h2>
+          </div>
+          {shift.isOff && <Badge variant="secondary" className="text-sm">{t("schDayOff")}</Badge>}
+        </div>
+
+        {!shift.isOff && shift.start ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary grid place-items-center">
+                <Repeat2 className="w-7 h-7" />
+              </div>
+              <div dir="ltr">
+                <div className="text-3xl font-extrabold text-primary">{formatRange(shift) || "—"}</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {lang === "ar" ? "ساعات الشفت" : "Shift hours"}
+                </div>
+              </div>
+            </div>
+
+            {breaks.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+                {breaks.map((b: any, bi: number) => (
+                  <div key={bi} className="rounded-xl border p-3 flex items-center justify-between">
+                    <div className="text-sm font-medium">
+                      {t("schBreaks")} {bi + 1}
+                    </div>
+                    <div className="font-mono text-primary" dir="ltr">{b.start} – {b.end}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {canRequestSwap && (
+              <div className="pt-2 border-t">
+                <Button size="sm" variant="outline" className="gap-1.5"
+                  onClick={() => setSwapOpen({ dayKey })}>
+                  <Repeat2 className="w-3.5 h-3.5" /> {t("schSwapNew")}
+                </Button>
+              </div>
+            )}
+          </div>
+        ) : (
+          !shift.isOff && (
+            <div className="text-center py-8 text-muted-foreground">
+              {lang === "ar" ? "لا يوجد شفت مسجّل لليوم" : "No shift scheduled for today"}
+            </div>
+          )
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
