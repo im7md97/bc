@@ -138,7 +138,12 @@ export function registerCoachingRoutes(app: Express) {
       }
 
       res.json(row);
-    } catch (err) { console.error("[coaching.create]", err); errInternal(res); }
+    } catch (err: any) {
+      console.error("[coaching.create]", err);
+      const detail = err?.message ?? String(err);
+      return sendError(res, 500, "coaching_failed",
+        `فشل حفظ الجلسة: ${detail}`, `Save failed: ${detail}`);
+    }
   });
 
   // ── ACKNOWLEDGE (agent) ─────────────────────────────────────────────
