@@ -92,6 +92,21 @@ export async function seedCore(): Promise<{ adminPassword?: string }> {
       created_at timestamp NOT NULL DEFAULT now(),
       updated_at timestamp NOT NULL DEFAULT now()
     );
+    -- Safety net for partial past creations: fill in any missing columns.
+    ALTER TABLE coaching_sessions ADD COLUMN IF NOT EXISTS agent_id integer;
+    ALTER TABLE coaching_sessions ADD COLUMN IF NOT EXISTS supervisor_user_id integer;
+    ALTER TABLE coaching_sessions ADD COLUMN IF NOT EXISTS session_type varchar(20);
+    ALTER TABLE coaching_sessions ADD COLUMN IF NOT EXISTS status varchar(30) DEFAULT 'pending_agent';
+    ALTER TABLE coaching_sessions ADD COLUMN IF NOT EXISTS positive_points text;
+    ALTER TABLE coaching_sessions ADD COLUMN IF NOT EXISTS mistakes text;
+    ALTER TABLE coaching_sessions ADD COLUMN IF NOT EXISTS improvement_plan text;
+    ALTER TABLE coaching_sessions ADD COLUMN IF NOT EXISTS target_metric text;
+    ALTER TABLE coaching_sessions ADD COLUMN IF NOT EXISTS deadline text;
+    ALTER TABLE coaching_sessions ADD COLUMN IF NOT EXISTS agent_acknowledged_at timestamp;
+    ALTER TABLE coaching_sessions ADD COLUMN IF NOT EXISTS agent_comment text;
+    ALTER TABLE coaching_sessions ADD COLUMN IF NOT EXISTS completed_at timestamp;
+    ALTER TABLE coaching_sessions ADD COLUMN IF NOT EXISTS created_at timestamp NOT NULL DEFAULT now();
+    ALTER TABLE coaching_sessions ADD COLUMN IF NOT EXISTS updated_at timestamp NOT NULL DEFAULT now();
     CREATE TABLE IF NOT EXISTS supervisor_schedules (
       id serial PRIMARY KEY,
       supervisor_user_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
