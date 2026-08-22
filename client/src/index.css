@@ -79,9 +79,17 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-sans);
+    /* Reserved by AnasWidget when its side panel is open — pushes the
+       portal to the start side so it stays fully usable instead of covered. */
+    padding-inline-end: var(--anas-panel-w, 0);
+    transition: padding-inline-end 300ms ease-out;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-bold tracking-tight;
+  }
+  /* Sticky navbar respects the reserved space too. */
+  header.sticky {
+    inset-inline-end: var(--anas-panel-w, 0);
   }
 }
 

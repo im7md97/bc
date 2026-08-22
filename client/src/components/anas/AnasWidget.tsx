@@ -78,6 +78,17 @@ export function AnasWidget(props: Props = {}) {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [history.length, chat.isPending]);
 
+  // Split-view: when the panel is open, reserve space on the end side of the
+  // page by pushing a CSS var onto <html>. The base stylesheet reads it to
+  // pad the body — so the portal shrinks instead of being covered.
+  useEffect(() => {
+    if (isFullPage) return;
+    const root = document.documentElement;
+    if (open) root.style.setProperty("--anas-panel-w", "440px");
+    else root.style.removeProperty("--anas-panel-w");
+    return () => { root.style.removeProperty("--anas-panel-w"); };
+  }, [open, isFullPage]);
+
   // Hooks — always ran, above any conditional return.
   const suggestions = useMemo(() => lang === "ar" ? [
     { icon: Sparkles,      text: "ماذا تستطيع أن تفعل؟" },
