@@ -93,9 +93,10 @@ export function AnasWidget(props: Props = {}) {
   // Hide the floating widget on the dedicated full-page route.
   if (!isFullPage && location.startsWith("/anas")) return null;
 
-  const submit = () => {
-    const m = draft.trim();
+  const submit = (override?: string) => {
+    const m = (override ?? draft).trim();
     if (!m || chat.isPending) return;
+    setDraft("");
     chat.mutate(m);
   };
 
@@ -103,9 +104,10 @@ export function AnasWidget(props: Props = {}) {
     ? (me.displayNameAr ?? me.username)
     : (me.displayNameEn ?? me.username);
 
-  const openFullPage = () => {
-    setOpen(false);
-    setLocation("/anas");
+  // Opens Anas in a real separate browser tab so the user can keep the portal
+  // in the current tab and Anas alongside it.
+  const openInNewTab = () => {
+    window.open("/anas", "_blank", "noopener");
   };
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -133,8 +135,8 @@ export function AnasWidget(props: Props = {}) {
           <RotateCcw className="w-4 h-4" />
         </button>
         {!isFullPage && (
-          <button onClick={openFullPage}
-            title={lang === "ar" ? "فتح في تبويب جديد" : "Open in new tab"}
+          <button onClick={openInNewTab}
+            title={lang === "ar" ? "فتح في تبويب متصفح جديد" : "Open in a new browser tab"}
             className="p-1.5 rounded-md hover:bg-slate-800 text-slate-400">
             <PanelRightOpen className="w-4 h-4" />
           </button>
@@ -183,8 +185,9 @@ export function AnasWidget(props: Props = {}) {
               isFullPage && "max-w-lg mx-auto pt-4",
             )}>
               {suggestions.map((s, i) => (
-                <button key={i} onClick={() => setDraft(s.text)}
-                  className="w-full text-start flex items-center gap-3 px-4 py-3 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800 transition">
+                <button key={i} onClick={() => submit(s.text)}
+                  disabled={chat.isPending || (status && !status.ready)}
+                  className="w-full text-start flex items-center gap-3 px-4 py-3 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800 transition disabled:opacity-50">
                   <s.icon className="w-4 h-4 text-sky-400 shrink-0" />
                   <span className="text-sm text-slate-200">{s.text}</span>
                 </button>
@@ -219,10 +222,12 @@ export function AnasWidget(props: Props = {}) {
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
                 }}
-                placeholder={lang === "ar" ? "اكتب سؤالك… (Enter لإرسال)" : "Type your question… (Enter to send)"}
-                disabled={chat.isPending || (status && !status.ready)}
+                placeholder={chat.isPending
+                  ? (lang === "ar" ? "أنس يفكّر…" : "Anas is thinking…")
+                  : (lang === "ar" ? "اكتب سؤالك… (Enter لإرسال)" : "Type your question… (Enter to send)")}
+                disabled={chat.isPending}
                 rows={1}
-                className="w-full bg-transparent px-4 py-3 text-sm outline-none resize-none max-h-32 placeholder:text-slate-500"
+                className="w-full bg-transparent px-4 py-3 text-sm outline-none resize-none max-h-32 placeholder:text-slate-500 disabled:opacity-60"
               />
             </div>
             <button type="submit" disabled={chat.isPending || !draft.trim()}
@@ -256,15 +261,11 @@ export function AnasWidget(props: Props = {}) {
         </button>
       )}
 
-      {/* Backdrop */}
-      {open && (
-        <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
-          onClick={() => setOpen(false)} />
-      )}
-
-      {/* Slide-in side panel */}
+      {/* Side panel — split-view (no backdrop, portal stays interactive).
+          When it opens we push a CSS var onto <html> that pages can read to
+          reserve space on the end side (or ignore; overlaying is fine too). */}
       <div className={cn(
-        "fixed top-0 end-0 h-screen z-50 w-[440px] max-w-[95vw]",
+        "fixed top-0 end-0 h-screen z-40 w-[440px] max-w-[95vw]",
         "transition-transform duration-300 ease-out",
         open ? "translate-x-0" : "translate-x-full rtl:-translate-x-full",
       )}>
